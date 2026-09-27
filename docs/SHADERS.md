@@ -104,10 +104,10 @@ une fois le geste confirmé. Aucun timer d’animation n’est ajouté.
 
 ## Format et limites
 
-Les nouveaux projets sont en **V5**, avec un champ `shaders` dans le manifeste
-et une entrée séparée pour les guides. Les V4 restent lisibles avec leurs shaders.
+Les nouveaux projets sont en **V6**, avec un champ `shaders` dans le manifeste
+et une entrée séparée pour les guides. Les V4/V5 restent lisibles avec leurs shaders.
 Les projets V1, V2 et V3 restent lisibles, avec une pile vide. Le profil de glyphes
-reste `ditto-sfmono-v3`. Les versions antérieures à 0.5 ne peuvent pas ouvrir les V5.
+reste `ditto-sfmono-v3`. Les anciens builds locaux ne peuvent pas ouvrir les V6.
 Les projets et looks contenant Blur ou Blur des contours nécessitent Ditto 0.4.5
 ou ultérieur ; les lecteurs plus anciens rejettent ces effets inconnus. Les anciennes
 recettes restent compatibles dans la nouvelle version.

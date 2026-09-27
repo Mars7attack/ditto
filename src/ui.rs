@@ -346,6 +346,9 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
             r.opacity,
         );
     }
+    if !doc.guides.above_characters {
+        draw_guides(&mut u.d, s);
+    }
     let alpha = if s.trace { 0.4 } else { 1. };
     let x0 = (((s.canvas.x - s.origin.0) / s.cell_width()).floor() as i32).max(0);
     let y0 = (((s.canvas.y - s.origin.1) / s.cell_size).floor() as i32).max(0);
@@ -431,25 +434,8 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
             }
         }
     }
-    if doc.guides.visible {
-        for stroke in doc.guides.strokes.iter() {
-            let points: Vec<_> = stroke
-                .points
-                .iter()
-                .map(|p| {
-                    [
-                        s.origin.0 + p[0] * s.cell_width(),
-                        s.origin.1 + p[1] * s.cell_size,
-                    ]
-                })
-                .collect();
-            u.d.polyline(
-                &points,
-                stroke.width * s.cell_width(),
-                stroke.color,
-                doc.guides.opacity,
-            );
-        }
+    if doc.guides.above_characters {
+        draw_guides(&mut u.d, s);
     }
     if s.modal.is_none() && s.edit_mode == EditMode::Mouse && s.cell_at(s.mouse).is_some() {
         if s.tool == Tool::Recolor {
@@ -921,7 +907,12 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
                 );
             }
             Modal::Help => {
-                u.text(x, y, "COMMANDES / SOURIS + CLAVIER", u.theme.accent);
+                u.text(
+                    x,
+                    y,
+                    &format!("DITTO {} ({}) / AIDE", ditto::VERSION, ditto::BUILD_ID),
+                    u.theme.accent,
+                );
                 let lines = [
                     "Cmd/Ctrl Shift M : basculer souris / clavier",
                     "Clavier : touches mappées ; Entrée : ligne suivante",
@@ -1054,13 +1045,36 @@ fn settings_window(u: &mut Ui, s: &State, x: f32, y: f32) {
     );
     u.button(x + 360., y + 400., "[Enregistrer]", Action::Submit, true);
 }
+fn draw_guides(d: &mut Draw, s: &State) {
+    let doc = &s.editor.document;
+    if doc.guides.visible {
+        for stroke in doc.guides.strokes.iter() {
+            let points: Vec<_> = stroke
+                .points
+                .iter()
+                .map(|p| {
+                    [
+                        s.origin.0 + p[0] * s.cell_width(),
+                        s.origin.1 + p[1] * s.cell_size,
+                    ]
+                })
+                .collect();
+            d.polyline(
+                &points,
+                stroke.width * s.cell_width(),
+                stroke.color,
+                doc.guides.opacity,
+            );
+        }
+    }
+}
 fn guides_window(u: &mut Ui, s: &State, x: f32, y: f32) {
     let layer = &s.editor.document.guides;
     u.text(x, y, "GUIDES / CALQUE DE PLACEMENT", u.theme.accent);
     u.text(
         x,
         y + 32.,
-        "Traits libres au-dessus du dessin, sans changer les glyphes.",
+        "Référence > guides > caractères, ou guides au premier plan.",
         u.theme.muted,
     );
     u.text(
@@ -1086,6 +1100,17 @@ fn guides_window(u: &mut Ui, s: &State, x: f32, y: f32) {
         &format!("{} traits", layer.strokes.len()),
         u.theme.muted,
     );
+    u.button(
+        x + 312.,
+        y + 100.,
+        if layer.above_characters {
+            "[x] Devant les caractères"
+        } else {
+            "[ ] Devant les caractères"
+        },
+        Action::GuideAbove,
+        layer.above_characters,
+    );
     u.text(
         x,
         y + 148.,
@@ -1110,6 +1135,13 @@ fn guides_window(u: &mut Ui, s: &State, x: f32, y: f32) {
         false,
     );
     u.d.rect(Rect::new(x + 200., y + 242., 32., 16.), s.guide_color, 1.);
+    u.button(
+        x + 256.,
+        y + 239.,
+        "[Recolorer tous les traits]",
+        Action::GuideRecolorAll,
+        false,
+    );
     u.button(
         x,
         y + 291.,

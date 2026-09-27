@@ -60,6 +60,7 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                 return;
             }
         };
+        eprintln!("Ditto {} ({})", ditto::VERSION, ditto::BUILD_ID);
         eprintln!("Ditto GPU: {}", renderer.adapter_name);
         eprintln!("Ditto font: {}", ditto::typeface::description());
         self.renderer = Some(renderer);
@@ -175,6 +176,11 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                         (false, 9) => Some("settings-midnight.png"),
                         (false, 10) => Some("settings-paper.png"),
                         (false, 11) => Some("workspace-paper.png"),
+                        (false, 12) => Some("guide-below-native.png"),
+                        (false, 13) => Some("guide-above-native.png"),
+                        (false, 14) => Some("guide-below-shader.png"),
+                        (false, 15) => Some("guide-above-shader.png"),
+                        (false, 16) => Some("guide-recolored.png"),
                         _ => None,
                     };
                     r.capture_next = name.map(|name| dir.join(name));
@@ -289,7 +295,32 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                         }
                         window.request_redraw();
                     }
-                    if self.smoke_frame >= if self.shader_quality { 5 } else { 12 } {
+                    if !self.shader_quality && (12..=16).contains(&self.smoke_frame) {
+                        match self.smoke_frame {
+                            12 => self.prepare_guide_order_smoke(),
+                            13 | 15 => self.state.activate(Action::GuideAbove),
+                            14 => {
+                                self.state.activate(Action::GuideAbove);
+                                let mut neutral =
+                                    ditto::shaders::Layer::new(ditto::shaders::Kind::Shine);
+                                neutral.params[2] = 0.;
+                                self.state.editor.document.shaders.layers = vec![neutral];
+                            }
+                            16 => {
+                                self.state.guide_color = [248, 200, 48];
+                                self.state.activate(Action::GuideRecolorAll);
+                            }
+                            _ => unreachable!(),
+                        }
+                        window.request_redraw();
+                    }
+                    if !self.shader_quality
+                        && self.smoke_frame == 17
+                        && let Err(e) = self.verify_guide_order_smoke()
+                    {
+                        self.failure = Some(format!("Guide compositing: {e:#}"));
+                    }
+                    if self.smoke_frame >= if self.shader_quality { 5 } else { 17 } {
                         if self.shader_quality
                             && self.smoke_frame == 5
                             && let Err(e) = self.verify_quality_smoke()
@@ -350,6 +381,104 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
     }
 }
 impl Ditto {
+    fn prepare_guide_order_smoke(&mut self) {
+        use ditto::core::{Asset, Cell, Document, Editor, Reference};
+        let mut doc = Document::new(8, 4).unwrap();
+        let asset = Arc::new(Asset {
+            width: 16,
+            height: 16,
+            rgba: [24, 72, 148, 255].repeat(256),
+        });
+        let mut reference = Reference::fit(asset, 8, 4, true);
+        reference.opacity = 1.;
+        doc.reference = Some(reference);
+        doc.set(
+            3,
+            1,
+            Cell {
+                glyph: 219,
+                fg: [220, 40, 80],
+                bg: None,
+            },
+        );
+        doc.guides.opacity = 1.;
+        doc.guides.start([0.5, 1.5], [40, 220, 120], 0.5);
+        doc.guides.append([7.5, 1.5]);
+        let s = &mut self.state;
+        s.modal = None;
+        s.editor = Editor::new(doc);
+        s.fit = false;
+        s.cell_size = 80.;
+        s.pan = (0., 0.);
+        s.trace = false;
+        s.grid = false;
+        s.tool = Tool::Pencil;
+        s.cursor = (0, 0);
+        s.mouse = (0., 0.);
+        s.layout(s.width, s.height);
+        s.status = "Référence bleue · caractère rouge · guide vert".into();
+    }
+    fn verify_guide_order_smoke(&self) -> anyhow::Result<()> {
+        let s = &self.state;
+        let dir = self.smoke.as_ref().unwrap();
+        let dpi = self.window.as_ref().unwrap().scale_factor() as f32;
+        let sample = |im: &image::RgbaImage, x: f32, y: f32| -> [u8; 3] {
+            let x = ((s.origin.0 + x * s.cell_width()) * dpi).floor() as u32;
+            let y = ((s.origin.1 + y * s.cell_size) * dpi).floor() as u32;
+            let p = im.get_pixel(x, y);
+            [p[0], p[1], p[2]]
+        };
+        let mut report = String::new();
+        for (file, ink, over) in [
+            ("guide-below-native.png", [40, 220, 120], false),
+            ("guide-above-native.png", [40, 220, 120], true),
+            ("guide-below-shader.png", [40, 220, 120], false),
+            ("guide-above-shader.png", [40, 220, 120], true),
+            ("guide-recolored.png", [248, 200, 48], true),
+        ] {
+            let im = image::open(dir.join(file))?.into_rgba8();
+            let reference = sample(&im, 1.5, 2.5);
+            let on_reference = sample(&im, 1.5, 1.5);
+            let on_character = sample(&im, 3.5, 1.5);
+            let expect = if over { ink } else { [220, 40, 80] };
+            let near = |actual: [u8; 3], expected: [u8; 3]| {
+                actual
+                    .into_iter()
+                    .zip(expected)
+                    .all(|(a, b)| a.abs_diff(b) <= 2)
+            };
+            anyhow::ensure!(
+                near(reference, [24, 72, 148]),
+                "{file}: reference pixel {reference:?}"
+            );
+            anyhow::ensure!(
+                near(on_reference, ink),
+                "{file}: guide is not above reference: {on_reference:?}"
+            );
+            anyhow::ensure!(
+                near(on_character, expect),
+                "{file}: wrong guide/character order: {on_character:?}"
+            );
+            report += &format!(
+                "{file}: reference={reference:?}, guide/reference={on_reference:?}, guide/character={on_character:?} OK\n"
+            );
+        }
+        let mut art = s.editor.document.clone();
+        art.reference = None;
+        art.guides = ditto::guides::Layer::default();
+        anyhow::ensure!(
+            ditto::project::render_png(&art, 2, None)?
+                == ditto::project::render_png(&s.editor.document, 2, None)?,
+            "guide order/ink leaked into export"
+        );
+        ditto::project::save(&dir.join("guide-order.ditto"), &s.editor.document)?;
+        anyhow::ensure!(ditto::project::load(&dir.join("guide-order.ditto"))? == s.editor.document);
+        std::fs::write(dir.join("guide-compositing.txt"), report)?;
+        eprintln!(
+            "GUIDE COMPOSITING OK: reference < guide < character, toggle, shaders, global recolor, clean export"
+        );
+        Ok(())
+    }
     fn workspace_smoke(&mut self) -> anyhow::Result<()> {
         use ditto::core::{Cell, Document, Editor};
         let s = &mut self.state;
@@ -712,6 +841,10 @@ fn main() -> anyhow::Result<()> {
                 shader_quality = true;
             }
             "--recovery-path" => recovery_override = args.next().map(PathBuf::from),
+            "--version" | "-V" => {
+                println!("Ditto {} ({})", ditto::VERSION, ditto::BUILD_ID);
+                return Ok(());
+            }
             "--help" => {
                 println!(
                     "Ditto [projet.ditto] [--smoke-dir dossier]\nÉditeur natif de caractères. F1 : aide."

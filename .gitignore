@@ -1,4 +1,8 @@
 /target/
 /dist/
-/.DS_Store
+.DS_Store
 /validation/runtime/
+*.ditto
+*.ditto-shaders
+.env
+.env.*

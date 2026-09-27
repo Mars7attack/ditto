@@ -111,7 +111,7 @@ pub fn save(path: &Path, doc: &Document) -> Result<()> {
     validate(doc)?;
     let manifest = Manifest {
         format: "ditto".into(),
-        version: 5,
+        version: 6,
         profile: typeface::PROFILE.into(),
         width: doc.width,
         height: doc.height,
@@ -187,13 +187,13 @@ pub fn load(path: &Path) -> Result<Document> {
     }
     let m: Manifest = serde_json::from_slice(&read_entry(&mut z, "manifest.json", 64 * 1024)?)?;
     ensure!(
-        m.format == "ditto" && [1, 2, 3, 4, 5].contains(&m.version),
+        m.format == "ditto" && [1, 2, 3, 4, 5, 6].contains(&m.version),
         "Version de projet non prise en charge."
     );
     ensure!(
         (m.version == 1 && m.profile == font::LEGACY_PROFILE)
             || (m.version == 2 && m.profile == font::PROFILE)
-            || ([3, 4, 5].contains(&m.version) && m.profile == typeface::PROFILE),
+            || ([3, 4, 5, 6].contains(&m.version) && m.profile == typeface::PROFILE),
         "Profil de glyphes non pris en charge."
     );
     let mut doc = Document::new(m.width, m.height).map_err(anyhow::Error::msg)?;

@@ -21,6 +21,8 @@ pub struct Stroke {
 #[serde(deny_unknown_fields)]
 pub struct Layer {
     pub visible: bool,
+    #[serde(default)]
+    pub above_characters: bool,
     pub opacity: f32,
     pub strokes: Arc<Vec<Arc<Stroke>>>,
 }
@@ -28,12 +30,24 @@ impl Default for Layer {
     fn default() -> Self {
         Self {
             visible: true,
+            above_characters: false,
             opacity: 0.65,
             strokes: Arc::new(Vec::new()),
         }
     }
 }
 impl Layer {
+    /// Apply the current guide ink to every existing stroke in one document edit.
+    pub fn recolor_all(&mut self, color: Color) {
+        if !self.strokes.iter().any(|s| s.color != color) {
+            return;
+        }
+        for stroke in Arc::make_mut(&mut self.strokes) {
+            if stroke.color != color {
+                Arc::make_mut(stroke).color = color;
+            }
+        }
+    }
     pub fn point_count(&self) -> usize {
         self.strokes.iter().map(|s| s.points.len()).sum()
     }

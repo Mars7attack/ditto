@@ -768,3 +768,25 @@ ne change ni les données du dessin ni les paramètres d’export.
 Le format V5 ajoute guides.json au ZIP. Les V1–V4 restent lisibles, le profil SF Mono
 et les indices de glyphes sont conservés. Voir docs/OUTILS-ET-REGLAGES.md pour les
 limites, les interactions et la procédure de validation.
+
+
+## 38. Première release publique — 0.1.0 / X0005
+
+Le suivi Git démarre sur github.com/Mars7attack/ditto avec un premier instantané
+avant ces modifications. La version publique est 0.1.0 et l’identifiant interne
+est X0005, conservé dans BUILD_ID, exposé par --version et l’aide, et incorporé aux
+paquets et métadonnées macOS. Les numéros de version des sections précédentes
+restent les repères historiques du développement local.
+
+Le calque de guides est désormais rendu après la référence et avant les caractères.
+L’option « Devant les caractères » le déplace après les caractères et leurs shaders.
+Ce choix est un attribut du document, sauvegardé et annulable. Une unique passe de
+guides est émise dans les deux cas. Sélection et curseur restent au premier plan.
+Le bouton « Recolorer tous les traits » remplace uniquement la couleur des traits
+existants par la couleur de guide choisie, sans déplacer leurs points ni modifier
+leur épaisseur. L’opération est atomique dans l’historique ; une couleur identique
+ne crée pas de révision supplémentaire.
+
+Le format V6 stocke above_characters dans guides.json. La lecture des V1–V5 est
+conservée ; les guides V5 sans attribut de position s’ouvrent sous les caractères.
+Le pipeline d’export reste indépendant de la référence et des guides.

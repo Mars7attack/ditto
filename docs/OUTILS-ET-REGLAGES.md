@@ -1,17 +1,22 @@
-# Guides, recoloration et réglages — Ditto 0.5
+# Guides, recoloration et réglages — Ditto 0.1.0 / X0005
 
 ## Guides de placement
 
 En mode souris, **D / Guides** dessine à main levée sur un calque transparent,
-au-dessus du dessin et de ses shaders. Les points sont libres : ils ne s’alignent
+au-dessus de l’image de référence et sous les caractères par défaut. Les points sont libres : ils ne s’alignent
 pas sur les cases ASCII. Le calque suit le déplacement et le zoom du document.
 
 **Guides F8**, en haut de la fenêtre, ouvre les contrôles :
 
 - Afficher ou masquer le calque ; un calque masqué ne reçoit pas de nouveaux traits.
+- **Devant les caractères** : placer les guides au premier plan, y compris devant
+  le rendu des shaders. Décoché, l’ordre est référence → guides → caractères.
 - Opacité du calque de 5 à 100 %.
 - Épaisseur des prochains traits de 0,1 à 8 largeurs de cellule.
 - Couleur des prochains traits, saisie en RVB hexadécimal.
+- **Recolorer tous les traits** : appliquer cette couleur à tous les traits
+  existants, même masqués. Les positions et épaisseurs sont conservées.
+  Cette recoloration globale est une seule action annulable.
 - Tracer, gommer des traits entiers au passage du pinceau, ou tout effacer.
 
 Chaque geste est une seule action annulable. Échap ou une perte de focus annule
@@ -69,17 +74,19 @@ couleur et épaisseur par trait. Le calque et ses traits utilisent un partage pa
 une entrée spécifique aux guides, aux shaders ou aux différences de cellules,
 et conserve un instantané complet pour les modifications combinées.
 
-Le pipeline de rendu reste : référence → dessin ASCII ou rendu des shaders →
-guides → sélection et curseur → interface. Les guides sont transformés en rubans
+Le pipeline de rendu est : référence → guides → dessin ASCII ou rendu des shaders
+→ sélection et curseur → interface. L’option de premier plan déplace la passe des
+guides après celle du dessin, avant la sélection et le curseur. Les guides sont transformés en rubans
 triangulés, avec bords adoucis, dans le rendu natif existant. Ils utilisent le même
 repère et le même découpage que le canevas mais n’entrent jamais dans sa texture
 artistique. L’export continue de rasteriser uniquement les cellules, puis applique
 les shaders. Le thème fournit des couleurs sémantiques à la construction de l’UI ;
 son aperçu est un brouillon indépendant du document et de son historique.
 
-Le format de projet passe en **V5**, avec une entrée `guides.json` séparée du
-manifeste et des cellules. Les versions V1 à V4 restent lisibles. Les anciens
-lecteurs ne peuvent pas ouvrir les sauvegardes V5. Le profil et les indices de
+Le format de projet est **V6** ; l’entrée `guides.json` conserve la position du
+calque avec `above_characters`, en plus des traits, de l’opacité et de la visibilité.
+Les versions V1 à V5 restent lisibles. Un ancien calque V5 sans position s’ouvre
+sous les caractères. Les anciens lecteurs ne peuvent pas ouvrir les sauvegardes V6. Le profil et les indices de
 glyphes ne changent pas. Le chargeur valide les entrées ZIP, les limites, les
 coordonnées finies et les paramètres. Limites : 2 048 traits, 65 536 points au total,
 8 192 points par trait, entrée de guides limitée à 8 Mio.
@@ -90,7 +97,7 @@ coordonnées finies et les paramètres. Limites : 2 048 traits, 65 536 points au
 cargo test --locked
 cargo test --locked --test shaders -- --include-ignored
 cargo clippy --locked --all-targets -- -D warnings
-cargo run --locked -- --smoke-dir validation/runtime/workspace-v050/debug
+cargo run --locked -- --smoke-dir validation/runtime/X0005/debug
 ```
 
 Le smoke exécute les mêmes routes de gestes que la fenêtre, teste recoloration,
@@ -98,3 +105,9 @@ annulation/rétablissement, guides, gomme, sauvegarde/réouverture et export pro
 Il capture le framebuffer Metal : calque visible/masqué, panneau Guides, thèmes
 Minuit/Papier et canevas clair. Les réglages et la récupération de ce scénario
 sont isolés dans son dossier de sortie. Il ne simule pas une souris physique.
+
+Le smoke contrôle aussi les pixels du framebuffer avec une référence bleue, un
+caractère rouge et un guide vert. Il vérifie que le guide masque la référence,
+que le caractère masque le guide par défaut, que l’option inverse leur ordre,
+et que le bouton de recoloration remplace le vert par la couleur choisie. Ces
+contrôles sont répétés avec la passe des shaders active ; l’export reste inchangé.

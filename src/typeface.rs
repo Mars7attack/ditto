@@ -61,10 +61,9 @@ fn load_face() -> Option<Face> {
     if let Ok(o) = std::process::Command::new("fc-match")
         .args(["-f", "%{file}", "monospace"])
         .output()
+        && o.status.success()
     {
-        if o.status.success() {
-            paths.push(PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()));
-        }
+        paths.push(PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()));
     }
     for path in paths {
         let Ok(data) = std::fs::read(&path) else {
@@ -180,7 +179,7 @@ pub fn uv(g: Glyph) -> [f32; 4] {
 }
 pub fn atlas_pixels() -> Vec<u8> {
     let mut pixels = vec![255; (ATLAS_WIDTH * atlas_height() * 4) as usize];
-    for p in pixels.chunks_exact_mut(4) {
+    for p in pixels.as_chunks_mut::<4>().0 {
         p[3] = 0;
     }
     for (g, m) in MASKS.iter().enumerate() {

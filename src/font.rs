@@ -211,7 +211,7 @@ pub fn bit(glyph: Glyph, x: u32, y: u32) -> bool {
 }
 pub fn atlas_pixels() -> Vec<u8> {
     let mut pixels = vec![255; (ATLAS_SIDE * ATLAS_SIDE * 4) as usize];
-    for p in pixels.chunks_exact_mut(4) {
+    for p in pixels.as_chunks_mut::<4>().0 {
         p[3] = 0;
     }
     for g in 0..CHARS.len() {

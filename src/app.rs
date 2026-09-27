@@ -96,6 +96,8 @@ pub enum Action {
     ThemeColor(Token),
     Guides,
     GuideVisible,
+    GuideAbove,
+    GuideRecolorAll,
     GuideOpacity(i32),
     GuideWidth(i32),
     GuideColor,
@@ -537,6 +539,19 @@ impl State {
                 self.dismiss_gesture();
                 self.modal = Some(Modal::Guides);
                 self.focus = None;
+            }
+            Action::GuideAbove => {
+                self.editor
+                    .edit(|d| d.guides.above_characters = !d.guides.above_characters);
+                self.changed();
+            }
+            Action::GuideRecolorAll => {
+                let color = self.guide_color;
+                self.editor.edit(|d| d.guides.recolor_all(color));
+                self.changed();
+                self.status =
+                    "Couleur appliquée à tous les traits du guide · Cmd/Ctrl Z pour annuler."
+                        .into();
             }
             Action::GuideVisible => {
                 self.editor.edit(|d| d.guides.visible = !d.guides.visible);
@@ -3276,6 +3291,53 @@ mod guide_recolor_settings_tests {
         s.activate(Action::Submit);
         assert_eq!(s.guide_color, [255, 204, 51]);
         assert!(matches!(s.modal, Some(Modal::Guides)));
+    }
+    #[test]
+    fn guide_order_and_recolor_all_are_independent_undoable_document_edits() {
+        let mut s = state();
+        assert!(!s.editor.document.guides.above_characters);
+        s.editor.document.guides.start([1., 1.], [10, 20, 30], 0.2);
+        s.editor.document.guides.append([5., 4.]);
+        s.editor.document.guides.start([2., 1.], [40, 50, 60], 0.8);
+        s.editor.document.guides.visible = false;
+        let original = s.editor.document.clone();
+        s.activate(Action::Guides);
+        s.activate(Action::GuideColor);
+        s.text_input("AABBCC");
+        s.activate(Action::Submit);
+        assert_eq!(
+            s.editor.document, original,
+            "ink picker affects future strokes only"
+        );
+        s.activate(Action::GuideRecolorAll);
+        let colored = s.editor.document.clone();
+        assert!(Arc::ptr_eq(&original.cells, &colored.cells));
+        for (before, after) in original
+            .guides
+            .strokes
+            .iter()
+            .zip(colored.guides.strokes.iter())
+        {
+            assert_eq!(after.color, [170, 187, 204]);
+            assert_eq!(before.points, after.points);
+            assert_eq!(before.width, after.width);
+        }
+        assert!(!colored.guides.visible);
+        let revision = s.editor.revision;
+        s.activate(Action::GuideRecolorAll);
+        assert_eq!(s.editor.revision, revision, "same ink is a no-op");
+        s.activate(Action::GuideAbove);
+        assert!(s.editor.document.guides.above_characters);
+        s.activate(Action::Undo);
+        assert_eq!(s.editor.document, colored);
+        s.activate(Action::Undo);
+        assert_eq!(s.editor.document, original);
+        s.activate(Action::Redo);
+        s.activate(Action::Redo);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("guides.ditto");
+        project::save(&path, &s.editor.document).unwrap();
+        assert_eq!(project::load(&path).unwrap(), s.editor.document);
     }
     #[test]
     fn failed_settings_save_keeps_draft_and_previous_preferences() {

@@ -437,7 +437,7 @@ fn old_and_extended_cells_roundtrip_in_sfmono_projects() {
     );
     project::save(&p, &doc).unwrap();
     let m = read_manifest(&p);
-    assert_eq!(m["version"], 5);
+    assert_eq!(m["version"], 6);
     assert_eq!(m["profile"], ditto::typeface::PROFILE);
     assert_eq!(doc, project::load(&p).unwrap());
     for (i, c) in ['▘', '▇', '\u{1fb02}', '\u{28ff}'].into_iter().enumerate() {
@@ -453,7 +453,7 @@ fn old_and_extended_cells_roundtrip_in_sfmono_projects() {
     }
     project::save(&p, &doc).unwrap();
     let m = read_manifest(&p);
-    assert_eq!(m["version"], 5);
+    assert_eq!(m["version"], 6);
     assert_eq!(m["profile"], ditto::typeface::PROFILE);
     assert_eq!(doc, project::load(&p).unwrap());
     assert_eq!(doc.text(None), "▘▇\u{1fb02}\u{28ff}");

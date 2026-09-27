@@ -1,8 +1,11 @@
 name: native
 on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-14, ubuntu-24.04]
     runs-on: ${{ matrix.os }}

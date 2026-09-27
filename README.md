@@ -1,4 +1,4 @@
-# Ditto 0.5.0
+# Ditto 0.1.0 — X0005
 
 Atelier de caractères natif pour macOS et Linux, écrit en Rust avec winit et wgpu.
 L’intérieur de la fenêtre est une interface terminal : SF Mono, cadres,
@@ -6,9 +6,16 @@ commandes textuelles et couleurs sobres inspirées du cadrage Lain/rétro.
 
 ## Lancer
 
-Sur le Mac de développement : ouvrir `dist/Ditto.app`.
+Télécharger les archives macOS Apple Silicon ou Linux x86_64 depuis la
+[release publique 0.1.0](https://github.com/Mars7attack/ditto/releases/tag/v0.1.0).
+Le code et les contrôles automatisés sont sur [GitHub](https://github.com/Mars7attack/ditto).
 
-Les archives macOS et Linux de `dist/` sont en version 0.5.0.
+Sur macOS, extraire l’archive et ouvrir `Ditto.app`. Le bundle est signé ad hoc,
+mais pas notarisé par Apple. Sur le Mac de développement : `dist/Ditto.app`.
+
+Version publique : **0.1.0** ; identifiant interne : **X0005**. Les numéros 0.2–0.5
+présents dans les notes historiques désignent les étapes de développement local
+avant cette première release. `ditto --version` affiche les deux identifiants.
 
 Sous Linux x86_64 : extraire `dist/ditto-linux-x86_64.tar.gz`, puis lancer
 `./ditto` depuis le dossier extrait. Le binaire est compilé pour glibc 2.35
@@ -38,8 +45,8 @@ l’application ou les projets. Sous Linux, Ditto utilise SF Mono si elle est
 installée dans les chemins habituels, sinon DejaVu Sans Mono ou une autre
 monospace locale. `DITTO_FONT_PATH` permet d’indiquer un fichier local.
 
-Les projets V1/V2/V3/V4 restent lisibles ; ils s’affichent désormais avec la nouvelle
-police. Les sauvegardes sont au format V5. Les positions/couleurs/caractères
+Les projets V1/V2/V3/V4/V5 restent lisibles ; ils s’affichent désormais avec la nouvelle
+police. Les sauvegardes sont au format V6. Les positions/couleurs/caractères
 sont préservés, mais le rendu et les proportions changent volontairement.
 Pour réajuster une ancienne référence aux nouvelles proportions, utiliser
 « Contenir » ou « Remplir ».
@@ -75,9 +82,11 @@ Traits/Blocs/Récents restent accessibles en mode souris.
 
 ## Guides, recoloration et thème
 
-- **D / Guides** : tracer librement sur un calque transparent au-dessus du canevas.
+- **D / Guides** : tracer librement entre l’image de référence et les caractères.
   **Guides F8** règle sa couleur, son épaisseur, son opacité et sa visibilité,
-  avec une gomme de traits. Le calque est sauvegardé mais exclu des exports.
+  avec une gomme de traits. « Devant les caractères » change sa position ;
+  « Recolorer tous les traits » applique la couleur choisie aux guides déjà dessinés.
+  Ces changements sont annulables. Le calque est sauvegardé mais exclu des exports.
 - **C / Recolorer** : repeindre uniquement la couleur FG des caractères existants,
   sans modifier les glyphes ou leur fond. La brosse respecte la sélection ;
   sa taille se règle avec − / + ou **[ / ]**. Chaque geste est annulable.
@@ -85,7 +94,7 @@ Traits/Blocs/Récents restent accessibles en mode souris.
   couleurs d’interface personnalisables. Aperçu immédiat, annulation et
   sauvegarde locale des préférences, indépendamment du dessin.
 
-[Utilisation, architecture et format V5](docs/OUTILS-ET-REGLAGES.md).
+[Utilisation, architecture et format V6](docs/OUTILS-ET-REGLAGES.md).
 
 ## Clavier
 
@@ -173,7 +182,7 @@ les fonds opaques. Cette aide n’affecte ni le document ni les exports.
 ## Sauvegarde et sorties
 
 Le `.ditto` contient un manifeste, les cellules, le calque de guides et la référence embarquée. Les anciens
-projets restent lisibles ; les nouvelles sauvegardes utilisent le format V5.
+projets restent lisibles ; les nouvelles sauvegardes utilisent le format V6.
 Une écriture temporaire suivie d’un remplacement atomique protège le fichier
 précédent en cas d’échec. Un brouillon de récupération est créé après une
 pause d’édition, séparément du projet. Il est proposé à la prochaine ouverture.
@@ -217,8 +226,10 @@ Le script Linux produit une archive contenant l’exécutable et sa documentatio
 Sur Linux, prévoir les bibliothèques de fenêtre et un pilote GPU compatible,
 ainsi qu’un portail de fichiers compatible ou Zenity pour les dialogues.
 
-La CI locale fournie décrit des builds macOS et Ubuntu. Elle n’a pas été publiée
-ni exécutée sur un service distant dans cette session.
+La [CI GitHub Actions](https://github.com/Mars7attack/ditto/actions/workflows/ci.yml)
+contrôle le formatage, les lints, les tests et les paquets sur macOS et Ubuntu.
+Les binaires, la licence et `BUILD_ID` sont livrés ensemble ; le bundle macOS
+reprend la version publique et l’identifiant interne dans ses métadonnées.
 
 ## Vérification
 

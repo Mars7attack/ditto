@@ -1,4 +1,39 @@
-# Ditto — validation du 27 septembre 2026
+# Ditto — validation du 28 septembre 2026
+
+
+## Release publique 0.1.0 — X0005 — 28 septembre 2026
+
+- Dépôt public créé : https://github.com/Mars7attack/ditto. Le premier commit
+  `04da4e2985e86a922be840931d6e2ca16c375695` a été poussé **avant** les modifications
+  de position et recoloration des guides. Les binaires, brouillons et captures
+  locales restent hors Git. Licence MIT, changelog, BUILD_ID et CI sont suivis.
+- Version publique 0.1.0 et identifiant interne X0005 : contrôlés via `--version`,
+  affichés dans l’aide et incorporés aux paquets. Les anciennes versions 0.2–0.5
+  sont des étapes locales, indépendantes de la numérotation publique.
+- **97 tests passent**, dont les deux tests GPU explicites. Guide par défaut
+  derrière les caractères, migration des guides V5, sauvegarde V6, couleur de
+  tous les traits, conservation des points/épaisseurs/cellules, undo/redo et absence
+  de révision lors d’une recoloration identique sont vérifiés.
+- Formatage et clippy local strict : OK. La première CI GitHub a détecté deux
+  nouveaux lints de Rust 1.98 sur les pixels d’atlas ; les itérations ont été
+  adaptées sans changer le rendu. L’issue courante du workflow macOS/Linux est
+  consultable dans https://github.com/Mars7attack/ditto/actions/workflows/ci.yml.
+- Smoke natif du bundle release réussi sur Apple M2 / Metal / SF Mono.
+  Contrôle pixel par pixel du framebuffer sur cinq captures : référence bleue,
+  guides verts devant la référence ; caractère rouge devant le guide par défaut ;
+  inversion via l’option ; répétition avec shaders ; recoloration du guide en jaune.
+  Les couleurs mesurées correspondent exactement aux valeurs attendues.
+- L’export avec guides/référence reste pixel-identique à celui du dessin seul.
+  Projet roundtrip V6 et état du calque vérifiés. Le panneau des guides est inspecté
+  visuellement et ses contrôles sont testés à la taille minimale de fenêtre.
+- Paquet macOS signé ad hoc vérifié, sans notarisation. Linux x86_64/glibc 2.35
+  cross-compilé avec la toolchain isolée ; pas de session graphique Linux.
+- Preuves locales sous `validation/runtime/X0005/` : `tests.log`, `clippy.log`,
+  `macos-build.log`, `linux-build.log`, `release.log` et, sous `release/`, les
+  captures `guide-*.png`, le rapport `guide-compositing.txt` et `guide-order.ditto`.
+  Le smoke utilise les routes internes de la fenêtre et le framebuffer réel ;
+  aucune nouvelle recette de souris physique ni VoiceOver n’est revendiquée.
+
 
 
 ## Guides, recoloration et réglages 0.5.0 — 27 septembre 2026

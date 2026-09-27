@@ -1,10 +1,11 @@
 [package]
 name = "ditto"
-version = "0.5.0"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Native terminal-style character art studio"
 license = "MIT"
+repository = "https://github.com/Mars7attack/ditto"
 
 [dependencies]
 winit = "=0.30.13"

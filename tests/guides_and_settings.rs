@@ -212,3 +212,37 @@ fn project_rejects_corrupt_guides_and_unversioned_layer_data() {
     }
     assert_eq!(project::load(&source).unwrap(), d);
 }
+
+#[test]
+fn v5_guides_without_order_migrate_below_characters_and_save_in_v6() {
+    use std::io::{Read, Write};
+    let dir = tempfile::tempdir().unwrap();
+    let old = dir.path().join("legacy-v5.ditto");
+    let mut w = zip::ZipWriter::new(std::fs::File::create(&old).unwrap());
+    let options = zip::write::SimpleFileOptions::default();
+    w.start_file("manifest.json", options).unwrap();
+    serde_json::to_writer(&mut w,&serde_json::json!({"format":"ditto","version":5,"profile":ditto::typeface::PROFILE,"width":1,"height":1,"palette":[[0,0,0]],"reference":null})).unwrap();
+    w.start_file("drawing.json", options).unwrap();
+    serde_json::to_writer(&mut w, &vec![Cell::default()]).unwrap();
+    w.start_file("guides.json", options).unwrap();
+    write!(w,r#"{{"visible":true,"opacity":0.65,"strokes":[{{"color":[10,20,30],"width":0.4,"points":[[0.5,0.5]]}}]}}"#).unwrap();
+    w.finish().unwrap();
+    let mut d = project::load(&old).unwrap();
+    assert!(!d.guides.above_characters);
+    assert_eq!(d.guides.strokes[0].color, [10, 20, 30]);
+    d.guides.above_characters = true;
+    d.guides.recolor_all([11, 22, 33]);
+    let new = dir.path().join("new.ditto");
+    project::save(&new, &d).unwrap();
+    assert_eq!(project::load(&new).unwrap(), d);
+    let mut z = zip::ZipArchive::new(std::fs::File::open(new).unwrap()).unwrap();
+    let mut m = String::new();
+    z.by_name("manifest.json")
+        .unwrap()
+        .read_to_string(&mut m)
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&m).unwrap()["version"],
+        6
+    );
+}
