@@ -224,7 +224,9 @@ scripts/package-linux.sh
 Le bundle macOS est signé ad hoc pour l’usage local ; il n’est pas notarisé.
 Le script Linux produit une archive contenant l’exécutable et sa documentation.
 Sur Linux, prévoir les bibliothèques de fenêtre et un pilote GPU compatible,
-ainsi qu’un portail de fichiers compatible ou Zenity pour les dialogues.
+ainsi qu’un portail de fichiers compatible ou Zenity pour les dialogues. Sous
+Debian/Ubuntu avec X11, installer aussi `libxkbcommon-x11-0`, chargé dynamiquement
+pour le clavier (la compilation seule ne détecte pas son absence).
 
 La [CI GitHub Actions](https://github.com/Mars7attack/ditto/actions/workflows/ci.yml)
 contrôle le formatage, les lints, les tests et les paquets sur macOS et Ubuntu.

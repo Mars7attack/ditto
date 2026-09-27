@@ -3,7 +3,7 @@
 `scripts/check.sh` exécute formatage, Clippy strict et tous les tests sans fenêtre.
 `scripts/check.sh --native` inclut les deux tests GPU, construit le binaire et
 exécute deux parcours avec une vraie fenêtre winit/wgpu. Sur Linux sans bureau :
-`xvfb-run -a -s '-screen 0 1920x1080x24' scripts/check.sh --native` avec Mesa Vulkan.
+`xvfb-run -a -s '-screen 0 1920x1080x24' scripts/check.sh --native` avec Mesa Vulkan et `libxkbcommon-x11-0` (clavier X11 chargé dynamiquement).
 Le workflow CI exécute la suite sans fenêtre sur macOS et Ubuntu et la suite
 native sur Ubuntu/Xvfb. Aucun échec GPU n’est transformé en succès ou ignoré dans
 le job natif.

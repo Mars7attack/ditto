@@ -15,7 +15,7 @@ jobs:
         with:
           components: clippy, rustfmt
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libdbus-1-dev zenity
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 libx11-dev libxcursor-dev libxrandr-dev libxi-dev libdbus-1-dev zenity
       - run: scripts/check.sh
       - if: runner.os == 'macOS'
         run: scripts/package-macos.sh
@@ -33,7 +33,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libdbus-1-dev zenity xvfb mesa-vulkan-drivers libegl1
+      - run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libxkbcommon-x11-0 libx11-dev libxcursor-dev libxrandr-dev libxi-dev libdbus-1-dev zenity xvfb mesa-vulkan-drivers libegl1
       - name: GPU tests and native input/render/export scenarios (Mesa + Xvfb)
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"

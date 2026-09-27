@@ -23,6 +23,9 @@ release créée.
 - Preuves locales : `validation/runtime/color-picker/check-native.log`,
   `validation/runtime/color-picker/native/` et
   `validation/runtime/native/run-smw4rp_s/`. Bundle de travail : `dist/Ditto-dev.app`.
+- Première exécution Linux : les 128 tests, GPU inclus, passent ; le lancement
+  X11 détecte une dépendance runtime manquante (`libxkbcommon-x11-0`). Ajoutée aux
+  prérequis CI et documentée pour l’installation Linux.
 - CI étendue avec Xvfb/Mesa sous Ubuntu : même commande de validation et artefacts
   conservés même en cas d’échec. Les détails et limites sont dans [docs/TESTS.md](docs/TESTS.md).
 - Les entrées sont injectées dans le routage applicatif. Ce résultat ne prétend
