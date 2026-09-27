@@ -1,0 +1,26 @@
+name: native
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libdbus-1-dev zenity
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - if: runner.os == 'macOS'
+        run: scripts/package-macos.sh
+      - if: runner.os == 'Linux'
+        run: scripts/package-linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ditto-${{ matrix.os }}
+          path: dist/

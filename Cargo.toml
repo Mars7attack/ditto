@@ -1,0 +1,36 @@
+[package]
+name = "ditto"
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Native terminal-style character art studio"
+license = "MIT"
+
+[dependencies]
+winit = "=0.30.13"
+wgpu = { version = "=24.0.5", default-features = false, features = ["wgsl", "metal"] }
+pollster = "0.4"
+bytemuck = { version = "1.21", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg"] }
+rfd = "=0.17.2"
+arboard = { version = "=3.6.1", default-features = false, features = ["wayland-data-control"] }
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+anyhow = "1"
+thiserror = "2"
+unicode-normalization = "0.1"
+directories = "6"
+accesskit = "=0.25.0"
+accesskit_winit = "=0.34.0"
+fontdue = "=0.9.3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[profile.dev]
+opt-level = 1
