@@ -269,8 +269,9 @@ limites de l’automatisation. Les résultats sont consignés dans [VALIDATION.m
   L’association Finder au double-clic n’est pas installée.
 - Les lecteurs d’écran macOS disposent d’un arbre de contrôles ; une recette VoiceOver
   complète et la validation AT-SPI Linux restent à réaliser.
-- La vérification de code et l’édition de liens Linux x86_64 ont réussi en compilation croisée.
-  L’utilisation graphique Wayland/X11 reste non testée ; voir le rapport de validation.
+- Les parcours graphiques Linux automatisés sont vérifiés sous X11/Xvfb avec
+  Mesa Vulkan. La recette sur un bureau Linux réel et sous Wayland reste à faire ;
+  voir le rapport de validation.
 
 Les extensions différées sont consignées dans la [spécification](SPEC-TECHNIQUE.md).
 La police bitmap de repli Modern DOS provient de PC Face ; [attribution et licence](assets/README.md).

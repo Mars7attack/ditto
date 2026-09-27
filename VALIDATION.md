@@ -26,8 +26,14 @@ release créée.
 - Première exécution Linux : les 128 tests, GPU inclus, passent ; le lancement
   X11 détecte une dépendance runtime manquante (`libxkbcommon-x11-0`). Ajoutée aux
   prérequis CI et documentée pour l’installation Linux.
-- CI étendue avec Xvfb/Mesa sous Ubuntu : même commande de validation et artefacts
-  conservés même en cas d’échec. Les détails et limites sont dans [docs/TESTS.md](docs/TESTS.md).
+- Après correction, job `native-e2e` validé sous Ubuntu/Xvfb, llvmpipe LLVM 20.1.2 /
+  Vulkan, DPI 1 : 128 tests passent, parcours éditeur et qualité shaders passent.
+  Shader neutre : écart maximal et moyen de 0/255 sur la fixture. Captures Linux
+  du sélecteur inspectées. [Run CI du code validé `e5cacf1`](https://github.com/Mars7attack/ditto/actions/runs/36359407406).
+- Preuves Linux récupérées dans `validation/runtime/color-picker/linux-native/` ;
+  preuve du bundle macOS release dans `validation/runtime/native/run-dyvp6q6v/`.
+  CI étendue avec conservation des artefacts même en cas d’échec. Les détails et
+  limites sont dans [docs/TESTS.md](docs/TESTS.md).
 - Les entrées sont injectées dans le routage applicatif. Ce résultat ne prétend
   pas valider une frappe système physique, les dialogues OS, le presse-papiers
   inter-applications ou une session complète VoiceOver/AT-SPI/Wayland.
