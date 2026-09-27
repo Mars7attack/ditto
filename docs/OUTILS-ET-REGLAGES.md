@@ -13,7 +13,7 @@ pas sur les cases ASCII. Le calque suit le déplacement et le zoom du document.
   le rendu des shaders. Décoché, l’ordre est référence → guides → caractères.
 - Opacité du calque de 5 à 100 %.
 - Épaisseur des prochains traits de 0,1 à 8 largeurs de cellule.
-- Couleur des prochains traits, saisie en RVB hexadécimal.
+- Couleur des prochains traits : sélecteur visuel et saisie RVB hexadécimale.
 - **Recolorer tous les traits** : appliquer cette couleur à tous les traits
   existants, même masqués. Les positions et épaisseurs sont conservées.
   Cette recoloration globale est une seule action annulable.
@@ -32,7 +32,7 @@ l’aperçu des shaders, la copie de cellules ou le texte.
 ## Recolorer les caractères
 
 En mode souris, **C / Recolorer** applique la couleur **FG** aux glyphes existants.
-Choisir une couleur dans la palette ou saisir sa valeur avec le bouton FG, puis
+Choisir une couleur dans la palette ou utiliser le sélecteur visuel / hexadécimal avec le bouton FG, puis
 glisser sur le dessin. Les caractères, leur position et leur fond restent inchangés.
 Les cellules vides, y compris le braille vide, sont ignorées.
 
@@ -51,7 +51,7 @@ Le bouton **Réglages**, ou **Cmd/Ctrl + virgule**, ouvre l’éditeur d’appar
 Trois thèmes sont fournis : **Ditto**, **Minuit** et **Papier**. Douze couleurs sont
 personnalisables : fond général, panneaux, texte principal et secondaire,
 bordures, accent/curseur, texte actif, fond de focus, canevas, grille, sélection et
-damier de transparence. Cliquer sur une couleur ouvre la saisie hexadécimale.
+damier de transparence. Cliquer sur une couleur ouvre le sélecteur visuel et la saisie hexadécimale synchronisée.
 
 Les modifications s’affichent immédiatement. **Enregistrer** conserve les
 préférences pour les lancements suivants ; **Annuler / Échap** rétablit le thème
@@ -111,3 +111,21 @@ caractère rouge et un guide vert. Il vérifie que le guide masque la référenc
 que le caractère masque le guide par défaut, que l’option inverse leur ordre,
 et que le bouton de recoloration remplace le vert par la couleur choisie. Ces
 contrôles sont répétés avec la passe des shaders active ; l’export reste inchangé.
+
+## Sélecteur de couleur commun
+
+FG, BG, palette (Maj-clic), guides, deux encres Duotone et douze couleurs du thème
+utilisent le même panneau. Le carré règle la saturation et la luminosité ; le
+bandeau arc-en-ciel règle la teinte. Le champ HEX et l’échantillon « Après » se
+mettent à jour pendant le geste. Une saisie HEX valide met également les curseurs
+à jour. Les couleurs sont RVB, sans canal alpha ; « Fond vide » reste disponible.
+
+La couleur reste provisoire jusqu’à **Appliquer** ; **Annuler** conserve la valeur
+précédente. Pour le thème, il faut ensuite **Enregistrer** dans Réglages. Pour les
+guides, les traits existants changent uniquement via **Recolorer tous les traits**.
+
+Au clavier, **Tab** parcourt carré, teinte, champ HEX et boutons. Dans le carré,
+gauche/droite règle la saturation et haut/bas la luminosité (1 %). Sur le bandeau,
+les flèches changent la teinte (1°). Entrée applique, Échap annule. Un HEX incomplet
+reste éditable et ne peut pas être appliqué. Relâcher la souris ou quitter la
+fenêtre termine le glissement.

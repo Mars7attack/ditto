@@ -1,4 +1,5 @@
 use crate::app::{Action as UiAction, EditMode, Modal, State};
+use crate::color_picker::Control;
 use accesskit::{
     Action, ActionData, ActionRequest, Affine, Live, Node, NodeId, Rect, Role, TreeId, TreeInfo,
     TreeUpdate,
@@ -17,7 +18,25 @@ pub fn tree(s: &State, scale: f64) -> TreeUpdate {
     for (i, h) in s.hits.iter().enumerate() {
         let id = NodeId(i as u64 + 10);
         let input = matches!(h.action, UiAction::Input(_));
-        let mut node = Node::new(if input { Role::TextInput } else { Role::Button });
+        let hue = h.action == UiAction::ColorControl(Control::Hue);
+        let mut node = Node::new(if input {
+            Role::TextInput
+        } else if hue {
+            Role::Slider
+        } else {
+            Role::Button
+        });
+        if hue {
+            node.set_numeric_value((s.color_picker.hue * 360.) as f64);
+            node.set_min_numeric_value(0.);
+            node.set_max_numeric_value(360.);
+            node.set_numeric_value_step(1.);
+            node.add_action(Action::Increment);
+            node.add_action(Action::Decrement);
+        }
+        if h.action == UiAction::ColorControl(Control::Plane) {
+            node.set_value(format!("Saturation {:.0} pour cent, luminosité {:.0} pour cent. Flèches gauche/droite : saturation ; haut/bas : luminosité.", s.color_picker.saturation * 100., s.color_picker.value * 100.));
+        }
         node.set_label(match h.action {
             UiAction::GuideAbove => if s.editor.document.guides.above_characters {"Guides devant les caractères. Activer pour les placer derrière."} else {"Guides derrière les caractères et devant la référence. Activer pour les placer devant."}.into(),
             UiAction::GuideRecolorAll => "Appliquer la couleur de guide choisie à tous les traits existants. Annulable.".into(),
@@ -101,7 +120,7 @@ pub fn tree(s: &State, scale: f64) -> TreeUpdate {
     }
     if let Some(modal) = &s.modal {
         let mut n = Node::new(Role::Label);
-        let value=match modal{Modal::Guides=>"Calque de guides. Tracer librement, gommer des traits, régler couleur, épaisseur, opacité, visibilité et position devant ou derrière les caractères. Recolorer tous les traits avec la couleur choisie. Les guides sont enregistrés avec le projet et exclus des exports. Cmd ou Ctrl Z annule.".into(),Modal::Settings=>"Réglages de l’application. Choisir un thème ou personnaliser chaque couleur. Aperçu immédiat. Enregistrer conserve les préférences ; Annuler rétablit le thème précédent.".into(),Modal::Shaders=>"Shaders. Aperçu avant et après. Molette pour zoomer, glisser pour déplacer. Plus et moins pour zoomer, zéro pour ajuster, un pour 100 pour cent, Alt et flèches pour déplacer la vue. Pile appliquée de haut en bas, paramètres annulables et enregistrés avec le projet. Les exports PNG incluent les effets. Tab pour parcourir les réglages, Entrée pour agir, Échap pour fermer.".into(),Modal::Text{content}=>format!("Texte à copier : {content}"),Modal::Charsets=>"Choisir un charset. Touches A à Z et rangée des chiffres sans Maj ni Option. Braille organisé en quatre hauteurs et motifs espacés.".into(),Modal::Help=>"Aide. Cmd ou Ctrl et flèches haut/bas : banque précédente/suivante du charset. Flèches : curseur. Entrée : appliquer. F6 : canevas. Tab : contrôles. Cmd ou Ctrl S : enregistrer. Z : annuler. Shift Z : rétablir. C, X, V : copier, couper, coller. Shift C : aperçu texte. Espace et glisser : déplacer la vue. Alt et flèches : déplacer la vue au clavier. Échap : annuler le geste.".into(),Modal::New{..}=>"Nouveau document. Choisir un préréglage ou saisir les dimensions.".into(),Modal::Resize{..}=>"Redimensionnement. Le contenu est conservé depuis le coin supérieur gauche ; le reste sera recadré. Cette action est annulable.".into(),Modal::Loss{..}=>"Modifications non enregistrées. Enregistrer avant de continuer ?".into(),Modal::Recovery=>"Un brouillon de récupération a été retrouvé.".into(),Modal::Export{..}=>"Export PNG : dessin seul, sans référence ni aides.".into(),Modal::Color{..}=>"Couleur RVB en six chiffres hexadécimaux.".into()};
+        let value=match modal{Modal::Guides=>"Calque de guides. Tracer librement, gommer des traits, régler couleur, épaisseur, opacité, visibilité et position devant ou derrière les caractères. Recolorer tous les traits avec la couleur choisie. Les guides sont enregistrés avec le projet et exclus des exports. Cmd ou Ctrl Z annule.".into(),Modal::Settings=>"Réglages de l’application. Choisir un thème ou personnaliser chaque couleur. Aperçu immédiat. Enregistrer conserve les préférences ; Annuler rétablit le thème précédent.".into(),Modal::Shaders=>"Shaders. Aperçu avant et après. Molette pour zoomer, glisser pour déplacer. Plus et moins pour zoomer, zéro pour ajuster, un pour 100 pour cent, Alt et flèches pour déplacer la vue. Pile appliquée de haut en bas, paramètres annulables et enregistrés avec le projet. Les exports PNG incluent les effets. Tab pour parcourir les réglages, Entrée pour agir, Échap pour fermer.".into(),Modal::Text{content}=>format!("Texte à copier : {content}"),Modal::Charsets=>"Choisir un charset. Touches A à Z et rangée des chiffres sans Maj ni Option. Braille organisé en quatre hauteurs et motifs espacés.".into(),Modal::Help=>"Aide. Cmd ou Ctrl et flèches haut/bas : banque précédente/suivante du charset. Flèches : curseur. Entrée : appliquer. F6 : canevas. Tab : contrôles. Cmd ou Ctrl S : enregistrer. Z : annuler. Shift Z : rétablir. C, X, V : copier, couper, coller. Shift C : aperçu texte. Espace et glisser : déplacer la vue. Alt et flèches : déplacer la vue au clavier. Échap : annuler le geste.".into(),Modal::New{..}=>"Nouveau document. Choisir un préréglage ou saisir les dimensions.".into(),Modal::Resize{..}=>"Redimensionnement. Le contenu est conservé depuis le coin supérieur gauche ; le reste sera recadré. Cette action est annulable.".into(),Modal::Loss{..}=>"Modifications non enregistrées. Enregistrer avant de continuer ?".into(),Modal::Recovery=>"Un brouillon de récupération a été retrouvé.".into(),Modal::Export{..}=>"Export PNG : dessin seul, sans référence ni aides.".into(),Modal::Color{..}=>"Couleur : carré saturation et luminosité, curseur de teinte et six chiffres hexadécimaux synchronisés. Tab puis flèches pour ajuster ; Entrée applique ; Échap annule.".into()};
         n.set_value(value);
         nodes.push((CONTENT, n));
         children.push(CONTENT);
@@ -138,6 +157,15 @@ pub fn action(s: &mut State, r: ActionRequest) {
     };
     match r.action {
         Action::Click => s.activate(hit.action),
+        Action::Increment | Action::Decrement => {
+            if let UiAction::ColorControl(control) = hit.action {
+                s.adjust_color(
+                    control,
+                    if r.action == Action::Increment { 1 } else { -1 },
+                    0,
+                );
+            }
+        }
         Action::Focus => {
             s.focus = Some(i);
             s.keyboard_canvas = false;

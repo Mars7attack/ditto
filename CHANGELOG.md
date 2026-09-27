@@ -2,6 +2,15 @@
 
 ## À paraître
 
+- Sélecteur visuel HSV et champ hexadécimal synchronisés pour toutes les couleurs,
+  aperçu avant/après, souris, clavier et teinte accessible.
+- Curseur clavier rétabli après les outils Guides/Gomme guides et retours des
+  panneaux ; restauration du focus après validation au clavier et recentrage
+  du curseur lors du passage en mode clavier.
+- Suite de contrats et de régressions étendue, parcours natifs avec assertions
+  sur les pixels GPU et commande `scripts/check.sh --native` ; exécution CI
+  Xvfb/Mesa avec conservation des captures et journaux.
+
 - Points / braille : huit petits L de trois rangées dans la banque « 3 points »,
   couvrant les quatre coins alignés en haut et en bas. Mappings précédents conservés.
 

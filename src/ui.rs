@@ -1,5 +1,6 @@
 use crate::{
     app::{Action, ColorTarget, EditMode, Gesture, Hit, Modal, State},
+    color_picker::{self, Control, Picker},
     render::{Draw, Rect},
 };
 use ditto::{
@@ -484,7 +485,9 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
             u.theme.selection,
         );
     }
-    if s.modal.is_none() && !matches!(s.tool, Tool::Guide | Tool::GuideErase) {
+    if s.modal.is_none()
+        && (s.edit_mode == EditMode::Keyboard || !matches!(s.tool, Tool::Guide | Tool::GuideErase))
+    {
         u.d.border(
             Rect::new(
                 s.origin.0
@@ -776,26 +779,7 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
                     },
                     u.theme.accent,
                 );
-                u.field(x, y + 70., "HEX / RGB", value, 0, true);
-                if let Ok(c) = ditto::project::color_hex(value) {
-                    u.d.rect(Rect::new(x + 200., y + 70., 120., 80.), c, 1.);
-                }
-                u.text(
-                    x,
-                    y + 184.,
-                    if matches!(target, ColorTarget::Theme(_)) {
-                        "Aperçu du thème ; enregistrer ensuite dans Réglages."
-                    } else if matches!(target, ColorTarget::Guide) {
-                        "Les prochains traits utiliseront cette couleur."
-                    } else if matches!(target, ColorTarget::Shader(..)) {
-                        "Cette encre recolore le rendu, les cellules restent intactes."
-                    } else {
-                        "La palette ne recolore pas le dessin existant."
-                    },
-                    u.theme.muted,
-                );
-                u.button(x, y + 300., "[Annuler]", Action::Cancel, false);
-                u.button(x + 336., y + 300., "[Appliquer]", Action::Submit, true);
+                color_window(&mut u, s, value, x, y);
             }
             Modal::Loss { .. } => {
                 u.text(x, y, "MODIFICATIONS NON ENREGISTRÉES", u.theme.accent);
@@ -1630,4 +1614,129 @@ fn keyboard_library(u: &mut Ui, s: &State, compact: bool) {
             u.theme.muted,
         );
     }
+}
+
+fn color_window(u: &mut Ui, s: &State, value: &str, x: f32, y: f32) {
+    let p = &s.color_picker;
+    let plane = color_picker::rect(s.width, Control::Plane);
+    let hue = color_picker::rect(s.width, Control::Hue);
+    let pure = Picker {
+        saturation: 1.,
+        value: 1.,
+        ..*p
+    }
+    .rgb();
+    let rgba = |c: Color| {
+        [
+            c[0] as f32 / 255.,
+            c[1] as f32 / 255.,
+            c[2] as f32 / 255.,
+            1.,
+        ]
+    };
+    u.text(x, y + 30., "SATURATION / LUMINOSITÉ", u.theme.muted);
+    u.d.gradient(
+        plane,
+        [rgba([255; 3]), rgba(pure), rgba([255; 3]), rgba(pure)],
+    );
+    u.d.gradient(
+        plane,
+        [
+            [0., 0., 0., 0.],
+            [0., 0., 0., 0.],
+            [0., 0., 0., 1.],
+            [0., 0., 0., 1.],
+        ],
+    );
+    let marker = (
+        plane.x + p.saturation * plane.w,
+        plane.y + (1. - p.value) * plane.h,
+    );
+    u.d.border(Rect::new(marker.0 - 4., marker.1 - 4., 9., 9.), [0; 3]);
+    u.d.border(Rect::new(marker.0 - 3., marker.1 - 3., 7., 7.), [255; 3]);
+    picker_hit(
+        u,
+        plane,
+        Control::Plane,
+        "Saturation et luminosité : flèches gauche/droite et haut/bas",
+    );
+    u.text(
+        x,
+        hue.y - 24.,
+        &format!("TEINTE {:03.0}°", p.hue * 360.),
+        u.theme.muted,
+    );
+    let hues = [
+        [255, 0, 0],
+        [255, 255, 0],
+        [0, 255, 0],
+        [0, 255, 255],
+        [0, 0, 255],
+        [255, 0, 255],
+        [255, 0, 0],
+    ];
+    for (i, pair) in hues.windows(2).enumerate() {
+        u.d.gradient(
+            Rect::new(hue.x + i as f32 * hue.w / 6., hue.y, hue.w / 6., hue.h),
+            [rgba(pair[0]), rgba(pair[1]), rgba(pair[0]), rgba(pair[1])],
+        );
+    }
+    let hx = hue.x + p.hue * (hue.w - 1.);
+    u.d.border(Rect::new(hx - 2., hue.y - 2., 5., hue.h + 4.), [0; 3]);
+    u.d.rect(Rect::new(hx, hue.y - 1., 1., hue.h + 2.), [255; 3], 1.);
+    picker_hit(
+        u,
+        hue,
+        Control::Hue,
+        "Teinte : flèches pour ajuster d’un degré",
+    );
+    u.field(
+        x + 352.,
+        y + 54.,
+        "HEX / RGB",
+        value,
+        0,
+        s.focus.is_none()
+            || s.focus
+                .is_some_and(|i| s.hits.get(i).is_some_and(|h| h.action == Action::Input(0))),
+    );
+    u.text(x + 352., y + 128., "AVANT / APRÈS", u.theme.muted);
+    u.d.rect(Rect::new(x + 352., y + 150., 88., 62.), p.original, 1.);
+    u.d.rect(Rect::new(x + 440., y + 150., 88., 62.), p.rgb(), 1.);
+    u.text(
+        x + 352.,
+        y + 230.,
+        &format!("S {:3.0}% · L {:3.0}%", p.saturation * 100., p.value * 100.),
+        u.theme.muted,
+    );
+    if ditto::project::color_hex(value).is_err() {
+        u.text(x + 352., y + 262., "6 chiffres requis", u.theme.accent);
+    }
+    u.text(
+        x,
+        y + 336.,
+        "Glisser pour choisir · Tab puis flèches au clavier",
+        u.theme.muted,
+    );
+    u.text(
+        x,
+        y + 364.,
+        "Entrée : appliquer · Échap : annuler",
+        u.theme.muted,
+    );
+    u.button(x, y + 404., "[Annuler]", Action::Cancel, false);
+    u.button(x + 432., y + 404., "[Appliquer]", Action::Submit, true);
+}
+fn picker_hit(u: &mut Ui, r: Rect, control: Control, label: &str) {
+    if u.focus == Some(u.hits.len()) {
+        u.d.border(
+            Rect::new(r.x - 6., r.y - 6., r.w + 12., r.h + 12.),
+            u.theme.accent,
+        );
+    }
+    u.hits.push(Hit {
+        rect: r,
+        action: Action::ColorControl(control),
+        label: label.into(),
+    });
 }

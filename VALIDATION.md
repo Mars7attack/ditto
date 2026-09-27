@@ -1,5 +1,34 @@
 # Ditto — validation du 28 septembre 2026
 
+## Sélecteur de couleurs et couverture de régression — 28 septembre 2026
+
+Branche `feat/color-picker-cursor-tests`, base `631a1ae` (petits L braille inclus).
+Version publique 0.1.0 / X0005 et format projet V6 conservés ; aucune nouvelle
+release créée.
+
+- Cause reproduite : l’outil Guides/Gomme guides mémorisé supprimait le cadre de
+  cellule même en mode clavier. Deux tests de géométrie émise échouaient avant
+  la correction, dont l’aller-retour par la couleur des guides.
+- Deuxième correction : valider une modale après Tab restaure maintenant le focus
+  du canevas. Le passage clavier recadre aussi un curseur sorti de la vue par pan.
+- Sélecteur HSV commun : FG, BG, palette, guide, thème et encres Duotone ; hex
+  synchronisé, avant/après, glissement borné, clavier et contrôle accessible de teinte.
+- `scripts/check.sh --native` : format, Clippy strict et **128 tests passent**
+  (les deux tests GPU explicitement exécutés), puis deux parcours natifs réussis.
+  31 tests supplémentaires, dont plusieurs matrices de scénarios et balayages
+  de couleurs, formes, masques et historique mixte.
+- Apple M2 / Metal / SF Mono : captures du picker et du curseur inspectées ;
+  11 captures supplémentaires vérifiées par sondes GPU, en plus des scènes
+  guides/shaders/exports existantes. Réouverture et export sans aides vérifiés.
+- Preuves locales : `validation/runtime/color-picker/check-native.log`,
+  `validation/runtime/color-picker/native/` et
+  `validation/runtime/native/run-smw4rp_s/`. Bundle de travail : `dist/Ditto-dev.app`.
+- CI étendue avec Xvfb/Mesa sous Ubuntu : même commande de validation et artefacts
+  conservés même en cas d’échec. Les détails et limites sont dans [docs/TESTS.md](docs/TESTS.md).
+- Les entrées sont injectées dans le routage applicatif. Ce résultat ne prétend
+  pas valider une frappe système physique, les dialogues OS, le presse-papiers
+  inter-applications ou une session complète VoiceOver/AT-SPI/Wayland.
+
 ## Petits L braille de hauteur 3 — 28 septembre 2026
 
 - Modification réalisée dans le worktree `ditto-braille-l`, branche

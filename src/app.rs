@@ -1,4 +1,7 @@
-use crate::render::{Draw, Rect as ScreenRect};
+use crate::{
+    color_picker::{self, Control as ColorControl, Picker},
+    render::{Draw, Rect as ScreenRect},
+};
 use ditto::{
     charset,
     core::*,
@@ -90,6 +93,7 @@ pub enum Action {
     Recover,
     ForgetRecovery,
     AddColor,
+    ColorControl(ColorControl),
     CopyExport,
     Settings,
     ThemePreset(usize),
@@ -221,6 +225,8 @@ pub struct State {
     pub text_origin: i32,
     pub path: Option<PathBuf>,
     pub modal: Option<Modal>,
+    pub color_picker: Picker,
+    color_drag: Option<ColorControl>,
     pub input: usize,
     pub input_replace: bool,
     pub ime: String,
@@ -298,6 +304,8 @@ impl State {
                     height: "50".into(),
                 }
             }),
+            color_picker: Picker::default(),
+            color_drag: None,
             input: 0,
             input_replace: true,
             ime: String::new(),
@@ -519,10 +527,21 @@ impl State {
             return;
         }
         self.perform(action);
+        if self.modal.is_none() && self.focus.is_none() {
+            self.keyboard_canvas = true;
+        }
     }
     fn perform(&mut self, action: Action) {
         self.shader_preview_drag = None;
+        self.color_drag = None;
         match action {
+            Action::ColorControl(control) => {
+                self.focus = self
+                    .hits
+                    .iter()
+                    .position(|h| h.action == Action::ColorControl(control));
+                self.keyboard_canvas = false;
+            }
             Action::Settings => {
                 self.dismiss_gesture();
                 self.settings_draft = Some(self.settings.clone());
@@ -724,6 +743,10 @@ impl State {
                 self.ref_transform = false;
                 self.space = false;
                 self.clamp_cursor();
+                if self.edit_mode == EditMode::Keyboard {
+                    self.layout(self.width, self.height);
+                    self.keep_cursor_visible();
+                }
                 self.status=if self.edit_mode==EditMode::Keyboard{"Mode clavier : une touche insère son glyphe et avance. Lettres et rangée des chiffres, sans combinaison."}else{"Mode souris : outils de peinture et répertoire de glyphes."}.into();
             }
             Action::Charsets => {
@@ -1150,6 +1173,7 @@ impl State {
         self.changed();
     }
     fn color_modal(&mut self, target: ColorTarget) {
+        self.dismiss_gesture();
         let c = match target {
             ColorTarget::Theme(token) => token.color(&self.theme()),
             ColorTarget::Guide => self.guide_color,
@@ -1166,6 +1190,8 @@ impl State {
                 self.editor.document.shaders.layers[layer].colors[color]
             }
         };
+        self.color_picker = Picker::new(c);
+        self.color_drag = None;
         self.modal = Some(Modal::Color {
             value: format!("{:02X}{:02X}{:02X}", c[0], c[1], c[2]),
             target,
@@ -1283,6 +1309,11 @@ impl State {
             Modal::Help | Modal::Charsets | Modal::Shaders | Modal::Guides => self.modal = None,
             Modal::Recovery => self.perform(Action::Recover),
             Modal::Loss { .. } => self.perform(Action::SaveContinue),
+        }
+        if self.modal.is_none() {
+            self.focus = None;
+            self.keyboard_canvas = true;
+            self.color_drag = None;
         }
     }
     fn clip_set(&mut self, text: &str) -> Result<(), String> {
@@ -1614,6 +1645,7 @@ impl State {
         }
         value.push_str(&accepted);
         value.truncate(8);
+        self.sync_color_picker();
     }
     pub fn backspace(&mut self) {
         if let Some(m) = &mut self.modal {
@@ -1630,6 +1662,7 @@ impl State {
             } else {
                 value.pop();
             }
+            self.sync_color_picker();
             return;
         }
         if self.edit_mode == EditMode::Keyboard {
@@ -1644,7 +1677,33 @@ impl State {
             self.changed();
         }
     }
+    fn sync_color_picker(&mut self) {
+        if let Some(Modal::Color { value, .. }) = &self.modal
+            && let Ok(c) = project::color_hex(value)
+        {
+            self.color_picker.sync(c);
+        }
+    }
+    fn write_picker(&mut self) {
+        if let Some(Modal::Color { value, .. }) = &mut self.modal {
+            *value = self.color_picker.hex();
+            self.input_replace = true;
+        }
+    }
+    pub fn adjust_color(&mut self, control: ColorControl, x: i32, y: i32) {
+        if matches!(self.modal, Some(Modal::Color { .. })) {
+            self.color_picker.adjust(control, x, y);
+            self.write_picker();
+        }
+    }
     pub fn move_cursor(&mut self, x: i32, y: i32, shift: bool) {
+        if matches!(self.modal, Some(Modal::Color { .. }))
+            && let Some(hit) = self.focus.and_then(|i| self.hits.get(i))
+            && let Action::ColorControl(control) = hit.action
+        {
+            self.adjust_color(control, x, y);
+            return;
+        }
         if self.modal.is_some() {
             self.tab(x < 0 || y < 0);
             return;
@@ -1826,7 +1885,7 @@ impl State {
         }
         if let Some(i) = self.focus {
             if let Some(hit) = self.hits.get(i) {
-                let a = if matches!(hit.action, Action::Input(_)) {
+                let a = if matches!(hit.action, Action::Input(_) | Action::ColorControl(_)) {
                     Action::Submit
                 } else {
                     hit.action.clone()
@@ -1947,6 +2006,18 @@ impl State {
             return;
         }
         if self.modal.is_some() {
+            if matches!(self.modal, Some(Modal::Color { .. })) && !right {
+                for control in [ColorControl::Plane, ColorControl::Hue] {
+                    let rect = color_picker::rect(self.width, control);
+                    if rect.contains(self.mouse) {
+                        self.activate(Action::ColorControl(control));
+                        self.color_drag = Some(control);
+                        self.color_picker.pointer(control, rect, self.mouse);
+                        self.write_picker();
+                        return;
+                    }
+                }
+            }
             if matches!(self.modal, Some(Modal::Shaders))
                 && !right
                 && self.shader_preview_rect().contains(self.mouse)
@@ -2084,6 +2155,13 @@ impl State {
     pub fn mouse_move(&mut self, p: (f32, f32)) {
         self.mouse = p;
         if self.modal.is_some() {
+            if matches!(self.modal, Some(Modal::Color { .. }))
+                && let Some(control) = self.color_drag
+            {
+                self.color_picker
+                    .pointer(control, color_picker::rect(self.width, control), p);
+                self.write_picker();
+            }
             if matches!(self.modal, Some(Modal::Shaders))
                 && let Some(drag) = self.shader_preview_drag
             {
@@ -2168,6 +2246,9 @@ impl State {
         }
     }
     pub fn mouse_up(&mut self) {
+        if self.color_drag.take().is_some() {
+            return;
+        }
         if self.shader_preview_drag.take().is_some() {
             return;
         }
@@ -2200,6 +2281,7 @@ impl State {
         }
     }
     pub fn lost_focus(&mut self) {
+        self.color_drag = None;
         self.shader_preview_drag = None;
         self.editor.cancel();
         self.gesture = None;

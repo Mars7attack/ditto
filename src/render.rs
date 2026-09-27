@@ -52,6 +52,39 @@ pub struct Draw {
     pub clip: Rect,
 }
 impl Draw {
+    /// Test the emitted, clipped solid geometry, not just an application flag.
+    #[cfg(test)]
+    pub fn has_solid_at(&self, p: (f32, f32), c: Color) -> bool {
+        let point = [p.0 / self.width * 2. - 1., 1. - p.1 / self.height * 2.];
+        let color = [
+            c[0] as f32 / 255.,
+            c[1] as f32 / 255.,
+            c[2] as f32 / 255.,
+            1.,
+        ];
+        self.batches.iter().any(|b| {
+            b.texture == 0
+                && b.clip.contains(p)
+                && self.vertices[b.range.start as usize..b.range.end as usize]
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .any(|t| {
+                        if !t.iter().all(|v| v.color == color && v.uv == t[0].uv) {
+                            return false;
+                        }
+                        let cross = |a: [f32; 2], b: [f32; 2]| {
+                            (b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0])
+                        };
+                        let d = [
+                            cross(t[0].position, t[1].position),
+                            cross(t[1].position, t[2].position),
+                            cross(t[2].position, t[0].position),
+                        ];
+                        d.iter().all(|v| *v >= 0.) || d.iter().all(|v| *v <= 0.)
+                    })
+        })
+    }
     pub fn new(width: f32, height: f32) -> Self {
         Self {
             vertices: Vec::new(),
@@ -112,6 +145,16 @@ impl Draw {
             ],
             0,
         );
+    }
+    /// Smooth vertex-interpolated gradient; shares the existing solid batch.
+    pub fn gradient(&mut self, r: Rect, corners: [[f32; 4]; 4]) {
+        let start = self.vertices.len();
+        self.rect(r, [255; 3], 1.);
+        if self.vertices.len() == start + 6 {
+            for (v, corner) in self.vertices[start..].iter_mut().zip([0, 1, 2, 2, 1, 3]) {
+                v.color = corners[corner];
+            }
+        }
     }
     fn solid_triangle(&mut self, points: [[f32; 2]; 3], c: Color, alpha: [f32; 3]) {
         let start = self.vertices.len() as u32;

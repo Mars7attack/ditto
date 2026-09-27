@@ -16,9 +16,7 @@ jobs:
           components: clippy, rustfmt
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libdbus-1-dev zenity
-      - run: cargo fmt --check
-      - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked
+      - run: scripts/check.sh
       - if: runner.os == 'macOS'
         run: scripts/package-macos.sh
       - if: runner.os == 'Linux'
@@ -27,3 +25,23 @@ jobs:
         with:
           name: ditto-${{ matrix.os }}
           path: dist/
+  native-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libdbus-1-dev zenity xvfb mesa-vulkan-drivers libegl1
+      - name: GPU tests and native input/render/export scenarios (Mesa + Xvfb)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          WINIT_UNIX_BACKEND: x11
+        run: xvfb-run -a -s '-screen 0 1920x1080x24' scripts/check.sh --native
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-e2e-evidence
+          path: validation/runtime/native/
+          if-no-files-found: warn

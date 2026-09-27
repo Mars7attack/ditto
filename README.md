@@ -70,7 +70,7 @@ fractions, quadrants, textures, sextants et braille. [Guide détaillé](docs/CLA
 - 665 glyphes : CP437 historique, traits, blocs, ombrages, sextants et braille.
 - Glyphe, premier plan et fond s’appliquent indépendamment via les cases du pinceau.
 - Clic sur une couleur : premier plan. Clic droit : fond. Shift-clic : modifier la palette.
-- Cliquer sur FG/BG pour saisir une couleur hexadécimale. « Fond vide » applique un fond transparent.
+- Cliquer sur FG/BG pour choisir une couleur visuellement ou saisir sa valeur hexadécimale. « Fond vide » applique un fond transparent.
 - Sélectionner une zone puis la déplacer, la couper, la copier ou l’effacer.
 - Coller produit un bloc flottant ; Entrée confirme et Échap annule. Repositionner un bloc qui dépasse la grille.
 - Un trait continu correspond à une seule action annulable. La perte de focus annule un geste encore provisoire.
@@ -144,7 +144,7 @@ L’aperçu se zoome à la molette/au trackpad et se déplace en glissant. **−
 - **Glow** : halo lumineux, rayon, puissance et seuil.
 - **Brillance** : reflet oblique avec position, largeur et éclat.
 - **Couleurs** : teinte, saturation et exposition.
-- **Duotone** : deux encres modifiables en hexadécimal, contraste et inversion.
+- **Duotone** : deux encres modifiables avec le sélecteur visuel ou en hexadécimal, contraste et inversion.
 - **Scanlines** : espacement, épaisseur et obscurité des lignes.
 - **Motif** : points, lignes diagonales ou damier, avec densité et espacement.
 - **Chromatique** : séparation rouge/bleu, distance, angle et balance.
@@ -228,23 +228,30 @@ ainsi qu’un portail de fichiers compatible ou Zenity pour les dialogues.
 
 La [CI GitHub Actions](https://github.com/Mars7attack/ditto/actions/workflows/ci.yml)
 contrôle le formatage, les lints, les tests et les paquets sur macOS et Ubuntu.
+Un job Linux dédié exécute les tests GPU et les parcours natifs sous Xvfb/Mesa,
+puis conserve les captures et les journaux comme artefacts.
 Les binaires, la licence et `BUILD_ID` sont livrés ensemble ; le bundle macOS
 reprend la version publique et l’identifiant interne dans ses métadonnées.
 
 ## Vérification
 
 ```sh
-cargo fmt --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
-# Sur une machine avec GPU :
-cargo test --locked --test shaders -- --include-ignored
-cargo run --release --locked -- --smoke-dir validation/runtime/smoke
+# Formatage, Clippy strict, tests sans fenêtre
+scripts/check.sh
+# Même suite + tests GPU + parcours natifs (une fenêtre s’ouvre puis se ferme)
+scripts/check.sh --native
+# Vérifier un binaire ou bundle déjà construit
+python3 scripts/test-native.py dist/Ditto.app/Contents/MacOS/ditto
 ```
 
-Le dernier scénario ouvre une vraie fenêtre GPU, exerce l’édition, sauvegarde,
-rouvre et exporte dans le dossier indiqué, puis quitte. Il isole son brouillon.
-Les preuves et limites de la recette sont détaillées dans [VALIDATION.md](VALIDATION.md).
+Les parcours natifs traversent le routage des entrées, les gestes, le rendu GPU,
+la sauvegarde/réouverture et l’export. Ils vérifient les pixels du curseur, des
+guides, du sélecteur et des shaders. Chaque exécution conserve ses preuves dans
+un dossier unique sous `validation/runtime/native/`, avec préférences et
+récupération isolées et arrêt forcé après 120 secondes en cas de blocage.
+
+La [matrice de tests](docs/TESTS.md) détaille les comportements couverts et les
+limites de l’automatisation. Les résultats sont consignés dans [VALIDATION.md](VALIDATION.md).
 
 ## Limites de cette V1
 

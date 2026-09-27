@@ -1,5 +1,9 @@
 mod accessibility;
 mod app;
+mod color_picker;
+mod e2e;
+#[cfg(test)]
+mod regression_tests;
 mod render;
 mod ui;
 use app::{Action, EditMode, State};
@@ -183,7 +187,12 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                         (false, 16) => Some("guide-recolored.png"),
                         _ => None,
                     };
-                    r.capture_next = name.map(|name| dir.join(name));
+                    r.capture_next = name.map(|name| dir.join(name)).or_else(|| {
+                        (!self.shader_quality)
+                            .then(|| e2e::name(self.smoke_frame))
+                            .flatten()
+                            .map(|name| dir.join(format!("{name}.png")))
+                    });
                 }
                 let needs_artwork = self.state.editor.document.shaders.active()
                     || matches!(self.state.modal, Some(app::Modal::Shaders));
@@ -320,7 +329,24 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                     {
                         self.failure = Some(format!("Guide compositing: {e:#}"));
                     }
-                    if self.smoke_frame >= if self.shader_quality { 5 } else { 17 } {
+                    if !self.shader_quality && (17..e2e::END).contains(&self.smoke_frame) {
+                        if let Err(e) = e2e::prepare(
+                            &mut self.state,
+                            self.smoke_frame,
+                            self.smoke.as_ref().unwrap(),
+                        ) {
+                            self.failure = Some(format!("Native E2E: {e:#}"));
+                            event_loop.exit();
+                        }
+                        window.request_redraw();
+                    }
+                    if !self.shader_quality
+                        && self.smoke_frame == e2e::END
+                        && let Err(e) = e2e::verify(self.smoke.as_ref().unwrap())
+                    {
+                        self.failure = Some(format!("Native E2E pixels: {e:#}"));
+                    }
+                    if self.smoke_frame >= if self.shader_quality { 5 } else { e2e::END } {
                         if self.shader_quality
                             && self.smoke_frame == 5
                             && let Err(e) = self.verify_quality_smoke()
@@ -835,7 +861,7 @@ fn main() -> anyhow::Result<()> {
     let mut recovery_override = None;
     while let Some(a) = args.next() {
         match a.as_str() {
-            "--smoke-dir" => smoke = args.next().map(PathBuf::from),
+            "--smoke-dir" | "--e2e-dir" => smoke = args.next().map(PathBuf::from),
             "--shader-quality-smoke-dir" => {
                 smoke = args.next().map(PathBuf::from);
                 shader_quality = true;
