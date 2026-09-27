@@ -1,5 +1,10 @@
 # Changelog
 
+## À paraître
+
+- Points / braille : huit petits L de trois rangées dans la banque « 3 points »,
+  couvrant les quatre coins alignés en haut et en bas. Mappings précédents conservés.
+
 ## 0.1.0 — X0005 — 2026-09-28
 
 Première version publique de Ditto, atelier ASCII natif pour macOS et Linux.

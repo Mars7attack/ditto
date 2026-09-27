@@ -68,7 +68,7 @@ fn every_charset_target_is_reachable_in_its_banks() {
 #[test]
 fn curated_braille_covers_four_heights_widths_and_mirrored_directions() {
     let set = &charset::ALL[5];
-    assert_eq!(set.targets.len(), 148);
+    assert_eq!(set.targets.len(), 156);
     let rows = |g| {
         let bits = font::character(g) as u32 - 0x2800;
         [0, 1, 2, 6]
@@ -77,7 +77,7 @@ fn curated_braille_covers_four_heights_widths_and_mirrored_directions() {
             .map(|(l, r)| ((bits >> l) & 1) as u8 | (((bits >> r) & 1) << 1) as u8)
             .collect::<Vec<_>>()
     };
-    for (bank, count) in [12, 25, 22, 19].into_iter().enumerate() {
+    for (bank, count) in [12, 25, 30, 19].into_iter().enumerate() {
         let height = bank + 1;
         assert_eq!(set.bank_len(bank), count);
         let patterns: HashSet<_> = (0..count).map(|i| rows(set.at(bank, i).unwrap())).collect();
@@ -119,6 +119,22 @@ fn curated_braille_covers_four_heights_widths_and_mirrored_directions() {
             &[0, 0],
             "{key} must sit on the bottom two dot rows"
         );
+    }
+    // Corner-only L shapes: full three-dot column plus its end-row neighbor.
+    for (key, character, pattern) in [
+        ('c', '⡖', [0, 3, 1, 1]),
+        ('v', '⢲', [0, 3, 2, 2]),
+        ('b', '⣆', [0, 1, 1, 3]),
+        ('n', '⣰', [0, 2, 2, 3]),
+        ('0', '⠏', [3, 1, 1, 0]),
+        ('1', '⠹', [3, 2, 2, 0]),
+        ('2', '⠧', [1, 1, 3, 0]),
+        ('3', '⠼', [2, 2, 3, 0]),
+    ] {
+        let glyph = set.resolve(2, key).unwrap();
+        assert_eq!(font::character(glyph), character);
+        assert_eq!(rows(glyph), pattern);
+        assert_eq!(pattern.iter().map(|r| r.count_ones()).sum::<u32>(), 4);
     }
     for (key, character) in [('h', '⣷'), ('j', '⣾'), ('k', '⡿'), ('l', '⢿')] {
         let g = set.resolve(3, key).unwrap();

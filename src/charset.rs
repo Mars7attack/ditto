@@ -201,6 +201,12 @@ fn braille() -> Charset {
                         set.targets.push(braille_rows(top, &rows));
                     }
                 }
+                // Three-row L corners, appended to preserve existing mappings.
+                for top in [1, 0] {
+                    for rows in [[3, 1, 1], [3, 2, 2], [1, 1, 3], [2, 2, 3]] {
+                        set.targets.push(braille_rows(top, &rows));
+                    }
+                }
             }
             4 => {
                 for rows in [

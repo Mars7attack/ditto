@@ -1,5 +1,25 @@
 # Ditto — validation du 28 septembre 2026
 
+## Petits L braille de hauteur 3 — 28 septembre 2026
+
+- Modification réalisée dans le worktree `ditto-braille-l`, branche
+  `feat/braille-l-corners`, depuis `dbd08705112940ce0b8423b0cf7344aca9ad0118`.
+- Banque « 3 points » : huit coins en L, quatre orientations alignées en haut
+  et en bas. C/V/B/N → ⡖/⢲/⣆/⣰ ; 0/1/2/3 → ⠏/⠹/⠧/⠼.
+  30 formes dans cette banque, 156 dans le preset, aucun ancien mapping déplacé.
+- `cargo test --locked` : 95 tests passent, deux tests GPU ignorés par défaut.
+  Le test du catalogue vérifie les huit géométries exactes et leurs touches ;
+  les vérifications globales de symétries, unicité et accès aux glyphes passent.
+- `cargo fmt --all --check`, clippy strict et `git diff --check` : OK.
+- Planche PNG inspectée et roundtrip projet vérifié :
+  `validation/runtime/braille-l-corners/braille.png` dans le worktree.
+- Bundle macOS release signé ad hoc ; smoke exécuté sur ce bundle,
+  Apple M2 / Metal / SF Mono, édition/export et composition des guides : OK.
+  Journal : `validation/runtime/braille-l-corners/native.log`.
+  Cette recette ne constitue pas une frappe physique ; Linux non exécuté.
+- Version publique et BUILD_ID conservés ; ajout documenté dans « À paraître »
+  du changelog, sans publier de release GitHub.
+
 
 ## Release publique 0.1.0 — X0005 — 28 septembre 2026
 

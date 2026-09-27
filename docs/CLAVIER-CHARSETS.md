@@ -1,7 +1,7 @@
 # Ditto — mode clavier, charsets et glyphes étendus
 
 Depuis la version 0.4.1, les mappings utilisent uniquement **36 sources : A–Z et 0–9**.
-Le braille est une sélection de 148 formes : quatre hauteurs et deux pages Espacés.
+Le braille est une sélection de 156 formes : quatre hauteurs et deux pages Espacés.
 L’interface, le dessin et les PNG gardent SF Mono et les cellules 8×16.
 Les projets V1 à V4 sont lus ; les sauvegardes utilisent V4 (avec la pile de shaders).
 
@@ -45,7 +45,7 @@ affectés aux mêmes touches, jamais les cellules déjà dessinées.
 | Traits Unicode | 84 | 3 |
 | Blocs et ombrages | 79 | 3 |
 | Mosaïques / sextants | 79 | 3 |
-| Points / braille | 148 | 4 hauteurs + 2 pages Espacés |
+| Points / braille | 156 | 4 hauteurs + 2 pages Espacés |
 
 Les correspondances des 26 lettres de la première banque des quatre premiers presets
 restent celles d’Asciitor. Les glyphes supplémentaires utilisent les chiffres, puis les
@@ -64,15 +64,29 @@ du panneau ou Page précédente/suivante.
 | --- | ---: | --- |
 | 1 point | 12 | Point gauche, droit ou paire, aux quatre positions verticales |
 | 2 points | 25 | Colonnes et rectangles hauts/médians/bas, diagonales et angles aux trois positions |
-| 3 points | 22 | Colonnes et pentes, sans rangée vide intermédiaire |
+| 3 points | 30 | Colonnes, pentes et quatre coins en L, alignés en haut et en bas |
 | 4 points | 19 | Colonnes, diagonales, remplissages et quatre variantes à sept points |
-| Espacés / lignes | 26 | Lignes séparées et motifs diagonaux de quatre points sur trois rangées |
+| Espacés / lignes | 34 | Lignes séparées, motifs diagonaux et alternés sur trois rangées |
 | Espacés / blocs | 36 | Groupes séparés, coins opposés et quatre variantes à cinq points |
 
 Dans chaque hauteur, **A = colonne gauche, Z = colonne droite, E = double colonne**,
 alignées en bas de la cellule. Chaque forme possède ses symétries horizontale et
 verticale dans la même banque, à l’intérieur de sa hauteur et sans déplacer son alignement. Le braille vide est omis : Espace remplit déjà ce rôle.
 La bibliothèque souris conserve les 256 motifs pour les besoins ponctuels.
+
+La banque **3 points** propose aussi les petits L de trois rangées : une colonne
+pleine de trois points et un point voisin à une extrémité, soit quatre points
+au total. Les quatre coins alignés en bas sont **C → ⡖, V → ⢲, B → ⣆, N → ⣰**.
+Leurs versions alignées en haut sont **0 → ⠏, 1 → ⠹, 2 → ⠧, 3 → ⠼**.
+Les 22 correspondances précédentes sont conservées.
+
+```text
+C / ⡖   V / ⢲   B / ⣆   N / ⣰
+· ·     · ·     · ·     · ·
+● ●     ● ●     ● ·     · ●
+● ·     · ●     ● ·     · ●
+● ·     · ●     ● ●     ● ●
+```
 
 Depuis 0.4.8, la banque **4 points** inclut les quatre formes à sept points :
 **H → ⣷, J → ⣾, K → ⡿, L → ⢿**. Une colonne est pleine, l’autre a trois points
