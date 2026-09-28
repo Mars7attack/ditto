@@ -207,7 +207,8 @@ pub struct State {
     pub recolor_radius: i32,
     pub editor: Editor,
     pub brush: Brush,
-    pub tool: Tool,
+    // Remembered only for mouse mode. Readers must use active_mouse_tool().
+    mouse_tool: Tool,
     pub edit_mode: EditMode,
     pub charset: usize,
     pub charset_bank: usize,
@@ -279,7 +280,7 @@ impl State {
             recolor_radius: 0,
             editor: Editor::new(Document::new(80, 50).unwrap()),
             brush: Brush::default(),
-            tool: Tool::Pencil,
+            mouse_tool: Tool::Pencil,
             edit_mode: EditMode::Mouse,
             charset: 3,
             charset_bank: 0,
@@ -377,12 +378,14 @@ impl State {
         ])
     }
     fn paint_cells(&mut self, points: &[(i32, i32)]) {
-        if self.tool == Tool::Recolor {
+        let Some(tool) = self.active_mouse_tool() else {
+            return;
+        };
+        if tool == Tool::Recolor {
             self.editor
                 .recolor(points, self.brush.cell.fg, self.recolor_radius);
         } else {
-            self.editor
-                .paint(points, self.brush, self.tool == Tool::Eraser);
+            self.editor.paint(points, self.brush, tool == Tool::Eraser);
         }
     }
     fn changed(&mut self) {
@@ -743,10 +746,7 @@ impl State {
                 self.ref_transform = false;
                 self.space = false;
                 self.clamp_cursor();
-                if self.edit_mode == EditMode::Keyboard {
-                    self.layout(self.width, self.height);
-                    self.keep_cursor_visible();
-                }
+                self.reveal_keyboard_cursor();
                 self.status=if self.edit_mode==EditMode::Keyboard{"Mode clavier : une touche insère son glyphe et avance. Lettres et rangée des chiffres, sans combinaison."}else{"Mode souris : outils de peinture et répertoire de glyphes."}.into();
             }
             Action::Charsets => {
@@ -829,6 +829,7 @@ impl State {
                 }
                 self.changed();
                 self.clamp_cursor();
+                self.reveal_keyboard_cursor();
             }
             Action::Redo => {
                 self.dismiss_gesture();
@@ -843,11 +844,12 @@ impl State {
                 }
                 self.changed();
                 self.clamp_cursor();
+                self.reveal_keyboard_cursor();
             }
             Action::Tool(t) => {
                 self.edit_mode = EditMode::Mouse;
                 self.dismiss_gesture();
-                self.tool = t;
+                self.mouse_tool = t;
                 if matches!(t, Tool::Guide | Tool::GuideErase)
                     && matches!(self.modal, Some(Modal::Guides))
                 {
@@ -1123,8 +1125,8 @@ impl State {
                     self.keyboard_canvas = true;
                 } else {
                     self.dismiss_gesture();
-                    if self.tool == Tool::Text {
-                        self.tool = Tool::Pencil;
+                    if self.active_mouse_tool() == Some(Tool::Text) {
+                        self.mouse_tool = Tool::Pencil;
                     } else {
                         self.editor.selection = None;
                     }
@@ -1572,7 +1574,7 @@ impl State {
             }
             return;
         }
-        if self.tool != Tool::Text || !self.keyboard_canvas {
+        if self.active_mouse_tool() != Some(Tool::Text) || !self.keyboard_canvas {
             return;
         }
         let rows = match font::parse_text(text) {
@@ -1669,7 +1671,7 @@ impl State {
             self.keyboard_erase(true);
             return;
         }
-        if self.tool == Tool::Text {
+        if self.active_mouse_tool() == Some(Tool::Text) {
             self.cursor.0 = (self.cursor.0 - 1).max(self.text_origin);
             self.editor.begin();
             self.editor.paint(&[self.cursor], self.brush, true);
@@ -1762,7 +1764,10 @@ impl State {
         self.cursor.0 += x;
         self.cursor.1 += y;
         self.clamp_cursor();
-        if shift && (self.tool == Tool::Select || self.edit_mode == EditMode::Keyboard) {
+        if shift
+            && (self.active_mouse_tool() == Some(Tool::Select)
+                || self.edit_mode == EditMode::Keyboard)
+        {
             if self.gesture.is_none() {
                 self.gesture = Some(Gesture::Select { origin: before });
             }
@@ -1804,6 +1809,14 @@ impl State {
             self.pan.0 += dx;
             self.pan.1 += dy;
             self.layout(self.width, self.height);
+        }
+    }
+    fn reveal_keyboard_cursor(&mut self) {
+        if self.edit_mode == EditMode::Keyboard {
+            // History can restore a different cursor or document size. Recompute
+            // the board before moving the viewport to the restored insertion point.
+            self.layout(self.width, self.height);
+            self.keep_cursor_visible();
         }
     }
     pub fn tab(&mut self, back: bool) {
@@ -1927,10 +1940,12 @@ impl State {
             }
             return;
         }
-        if let Some(Gesture::Shape { origin }) = self.gesture.clone() {
+        if let Some(Gesture::Shape { origin }) = self.gesture.clone()
+            && let Some(tool) = self.active_mouse_tool()
+        {
             self.editor.begin();
             self.editor.paint(
-                &shape(self.tool, origin, self.cursor, self.filled),
+                &shape(tool, origin, self.cursor, self.filled),
                 self.brush,
                 false,
             );
@@ -1962,7 +1977,10 @@ impl State {
             self.keep_cursor_visible();
             return;
         }
-        match self.tool {
+        let Some(tool) = self.active_mouse_tool() else {
+            return;
+        };
+        match tool {
             Tool::Guide | Tool::GuideErase => self.activate(Action::Guides),
             Tool::Line | Tool::Rectangle => {
                 self.gesture = Some(Gesture::Shape {
@@ -2100,7 +2118,10 @@ impl State {
             self.gesture = Some(Gesture::Select { origin: p });
             return;
         }
-        match self.tool {
+        let Some(tool) = self.active_mouse_tool() else {
+            return;
+        };
+        match tool {
             Tool::Guide | Tool::GuideErase => {
                 if !self.editor.document.guides.visible {
                     self.status =
@@ -2109,7 +2130,7 @@ impl State {
                 }
                 let point = self.guide_point(self.mouse).unwrap();
                 self.editor.begin();
-                if self.tool == Tool::Guide {
+                if tool == Tool::Guide {
                     if !self
                         .editor
                         .document
@@ -2132,7 +2153,7 @@ impl State {
             Tool::Pencil | Tool::Eraser | Tool::Recolor => {
                 self.editor.begin();
                 self.paint_cells(&[p]);
-                self.gesture = Some(if self.tool == Tool::Recolor {
+                self.gesture = Some(if tool == Tool::Recolor {
                     Gesture::Recolor { last: Some(p) }
                 } else {
                     Gesture::Stroke { last: p }
@@ -2186,7 +2207,7 @@ impl State {
                 Gesture::Guide { last } => {
                     let mut next = self.guide_point(p);
                     if let Some(point) = next {
-                        if self.tool == Tool::GuideErase {
+                        if self.active_mouse_tool() == Some(Tool::GuideErase) {
                             self.editor.document.guides.erase(
                                 last.unwrap_or(point),
                                 point,
@@ -2235,7 +2256,9 @@ impl State {
                 }
             }
         } else if let Some(cell) = self.cell_at(p) {
-            if (self.edit_mode == EditMode::Mouse && self.tool != Tool::Text)
+            if self
+                .active_mouse_tool()
+                .is_some_and(|tool| tool != Tool::Text)
                 || self.floating.is_some()
             {
                 self.cursor = cell;
@@ -2570,7 +2593,7 @@ mod regression_tests {
         let mut s = State::new(PathBuf::from("/tmp/ditto-no-recovery"));
         s.modal = None;
         s.layout(1184., 832.);
-        s.tool = Tool::Text;
+        s.activate(Action::Tool(Tool::Text));
         s.cursor = (1, 1);
         s.mouse_move((
             s.origin.0 + 20. * s.cell_width(),
@@ -2609,6 +2632,11 @@ mod navigation_tests {
 }
 
 impl State {
+    /// Keyboard editing has no mouse tool, even when one is remembered.
+    /// Rendering, input routing and accessibility share this mode boundary.
+    pub fn active_mouse_tool(&self) -> Option<Tool> {
+        (self.edit_mode == EditMode::Mouse).then_some(self.mouse_tool)
+    }
     pub fn active_charset(&self) -> &'static charset::Charset {
         &charset::ALL[self.charset]
     }
@@ -2807,7 +2835,7 @@ mod charset_editing_tests {
                 s.active_charset().resolve(0, *k).unwrap()
             );
         }
-        assert_eq!(s.tool, Tool::Pencil);
+        assert_eq!(s.active_mouse_tool(), None);
     }
     #[test]
     fn mappings_click_and_key_are_identical() {
@@ -3440,7 +3468,7 @@ mod guide_recolor_settings_tests {
     fn new_controls_fit_and_do_not_overlap_at_minimum_size() {
         let mut s = state();
         s.layout(1120., 720.);
-        s.tool = Tool::Recolor;
+        s.activate(Action::Tool(Tool::Recolor));
         for modal in [None, Some(Modal::Guides), Some(Modal::Settings)] {
             s.modal = modal;
             s.frame();

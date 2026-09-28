@@ -40,6 +40,160 @@ fn caret_is_drawn(s: &mut State) -> bool {
     )
 }
 
+const MOUSE_TOOLS: [Tool; 11] = [
+    Tool::Pencil,
+    Tool::Eraser,
+    Tool::Recolor,
+    Tool::Guide,
+    Tool::GuideErase,
+    Tool::Line,
+    Tool::Rectangle,
+    Tool::Fill,
+    Tool::Text,
+    Tool::Select,
+    Tool::Pick,
+];
+
+#[test]
+fn keyboard_escape_clears_selection_without_changing_the_remembered_mouse_tool() {
+    for tool in MOUSE_TOOLS {
+        let mut s = state();
+        s.activate(Action::Tool(tool));
+        click(&mut s, Action::ToggleEditMode);
+        s.move_cursor(2, 0, true);
+        assert!(s.editor.selection.is_some());
+        key(&mut s, NamedKey::Escape);
+        assert!(s.editor.selection.is_none(), "selection kept by {tool:?}");
+        assert!(s.keyboard_active() && caret_is_drawn(&mut s));
+        click(&mut s, Action::ToggleEditMode);
+        assert_eq!(
+            s.active_mouse_tool(),
+            Some(tool),
+            "keyboard Escape changed mouse tool"
+        );
+    }
+}
+
+#[test]
+fn keyboard_ime_with_ui_focus_never_falls_through_to_the_mouse_text_tool() {
+    for tool in MOUSE_TOOLS {
+        let mut s = state();
+        s.activate(Action::Tool(tool));
+        s.activate(Action::ToggleEditMode);
+        // A focused colour swatch can keep keyboard_canvas true; IME commits
+        // must respect focus just like ordinary key events.
+        s.focus = s.hits.iter().position(|h| h.action == Action::Foreground);
+        assert!(s.focus.is_some());
+        let before = (s.editor.document.clone(), s.cursor, s.editor.revision);
+        s.ime_commit("A");
+        assert_eq!(
+            (s.editor.document.clone(), s.cursor, s.editor.revision),
+            before,
+            "{tool:?}"
+        );
+    }
+}
+
+#[test]
+fn keyboard_history_keeps_restored_caret_in_view_after_navigation() {
+    for tool in MOUSE_TOOLS {
+        let mut s = state();
+        s.activate(Action::Tool(tool));
+        s.activate(Action::ToggleEditMode);
+        s.fit = false;
+        s.cell_size = 100.;
+        s.frame();
+        s.move_cursor(-7, -5, false);
+        s.keyboard_input("a");
+        s.move_cursor(22, 15, false);
+        assert!(caret_is_drawn(&mut s));
+        let command = if cfg!(target_os = "macos") {
+            ModifiersState::SUPER
+        } else {
+            ModifiersState::CONTROL
+        };
+        route_key(&mut s, command, Key::Character("z".into()), None);
+        assert_eq!(s.cursor, (0, 0));
+        assert!(caret_is_drawn(&mut s), "undo hid caret after {tool:?}");
+        s.move_cursor(23, 15, false);
+        route_key(
+            &mut s,
+            command | ModifiersState::SHIFT,
+            Key::Character("z".into()),
+            None,
+        );
+        assert_eq!(s.cursor, (1, 0));
+        assert!(caret_is_drawn(&mut s), "redo hid caret after {tool:?}");
+    }
+}
+
+#[test]
+fn keyboard_inputs_and_canvas_selection_are_identical_for_every_mouse_tool() {
+    let mut expected = None;
+    for tool in MOUSE_TOOLS {
+        let mut s = state();
+        s.editor
+            .document
+            .guides
+            .start([1., 5.5], [80, 220, 160], 1.);
+        s.editor.document.guides.append([20., 5.5]);
+        s.activate(Action::Tool(tool));
+        click(&mut s, Action::ToggleEditMode);
+        let mut snapshots = Vec::new();
+        let mut record = |s: &mut State| {
+            assert!(s.active_mouse_tool().is_none());
+            assert!(s.keyboard_active() && caret_is_drawn(s), "{tool:?}");
+            snapshots.push((s.editor.document.clone(), s.cursor, s.editor.selection));
+        };
+        let start = s.cursor;
+        s.mouse_move(point(&s, 15, 8));
+        assert_eq!(s.cursor, start, "hover moved keyboard caret after {tool:?}");
+        record(&mut s);
+        stroke(&mut s, (3, 4), (6, 4)); // Always selects; never draws with the remembered tool.
+        record(&mut s);
+        key(&mut s, NamedKey::Escape);
+        record(&mut s);
+        for input in ["a", "b", "d", "t"] {
+            route_key(
+                &mut s,
+                ModifiersState::empty(),
+                Key::Character(input.into()),
+                Some(input),
+            );
+            record(&mut s);
+        }
+        for input in [
+            NamedKey::ArrowLeft,
+            NamedKey::Backspace,
+            NamedKey::Tab,
+            NamedKey::Space,
+            NamedKey::Enter,
+            NamedKey::Delete,
+        ] {
+            key(&mut s, input);
+            record(&mut s);
+        }
+        s.move_cursor(3, 0, true);
+        record(&mut s);
+        s.ime_commit("XY");
+        record(&mut s);
+        for action in [Action::Undo, Action::Undo, Action::Redo, Action::Redo] {
+            s.activate(action);
+            record(&mut s);
+        }
+        if let Some(expected) = &expected {
+            assert!(
+                &snapshots == expected,
+                "keyboard behavior depends on {tool:?}"
+            );
+        } else {
+            expected = Some(snapshots);
+        }
+        click(&mut s, Action::ToggleEditMode);
+        assert_eq!(s.active_mouse_tool(), Some(tool));
+    }
+}
+
 #[test]
 fn keyboard_caret_is_drawn_after_every_mouse_tool_and_repeated_mode_switches() {
     for tool in [

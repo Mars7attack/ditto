@@ -185,10 +185,11 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
                 98. + (i / 2) as f32 * 22.,
                 label,
                 Action::Tool(*t),
-                s.tool == *t || (*t == Tool::Guide && s.tool == Tool::GuideErase),
+                s.active_mouse_tool() == Some(*t)
+                    || (*t == Tool::Guide && s.active_mouse_tool() == Some(Tool::GuideErase)),
             );
         }
-        if s.tool == Tool::Recolor {
+        if s.active_mouse_tool() == Some(Tool::Recolor) {
             u.text(
                 24.,
                 223.,
@@ -242,7 +243,7 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
         Action::Foreground,
         false,
     );
-    let recoloring = s.edit_mode == EditMode::Mouse && s.tool == Tool::Recolor;
+    let recoloring = s.active_mouse_tool() == Some(Tool::Recolor);
     if !recoloring {
         u.button(
             160.,
@@ -401,8 +402,10 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
             }
         }
     }
-    if let Some(Gesture::Shape { origin }) = s.gesture {
-        for (x, y) in core::shape(s.tool, origin, s.cursor, s.filled) {
+    if let Some(Gesture::Shape { origin }) = s.gesture
+        && let Some(tool) = s.active_mouse_tool()
+    {
+        for (x, y) in core::shape(tool, origin, s.cursor, s.filled) {
             if s.editor.selection.is_none_or(|r| r.contains(x, y))
                 && let Some(c) = doc.get(x, y)
             {
@@ -432,8 +435,11 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
     if doc.guides.above_characters {
         draw_guides(&mut u.d, s);
     }
-    if s.modal.is_none() && s.edit_mode == EditMode::Mouse && s.cell_at(s.mouse).is_some() {
-        if s.tool == Tool::Recolor {
+    if s.modal.is_none()
+        && s.cell_at(s.mouse).is_some()
+        && let Some(tool) = s.active_mouse_tool()
+    {
+        if tool == Tool::Recolor {
             let r = s.recolor_radius;
             for y in s.cursor.1 - r..=s.cursor.1 + r {
                 for x in s.cursor.0 - r..=s.cursor.0 + r {
@@ -450,8 +456,8 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
                     }
                 }
             }
-        } else if matches!(s.tool, Tool::Guide | Tool::GuideErase) {
-            let radius = if s.tool == Tool::GuideErase {
+        } else if matches!(tool, Tool::Guide | Tool::GuideErase) {
+            let radius = if tool == Tool::GuideErase {
                 s.guide_width.max(1.)
             } else {
                 s.guide_width / 2.
@@ -479,9 +485,13 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
             u.theme.selection,
         );
     }
-    if s.modal.is_none()
-        && (s.edit_mode == EditMode::Keyboard || !matches!(s.tool, Tool::Guide | Tool::GuideErase))
-    {
+    // The insertion caret is the final canvas overlay, including when history
+    // brings it to the viewport edge. The board outline must not cover it.
+    let canvas_clip = u.d.clip;
+    u.d.clip = Rect::new(0., 0., s.width, s.height);
+    u.d.border(board.intersect(s.canvas), u.theme.border);
+    u.d.clip = canvas_clip;
+    if s.modal.is_none() && !matches!(s.active_mouse_tool(), Some(Tool::Guide | Tool::GuideErase)) {
         u.d.border(
             Rect::new(
                 s.origin.0
@@ -499,7 +509,6 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
         );
     }
     u.d.clip = Rect::new(0., 0., s.width, s.height);
-    u.d.border(board.intersect(s.canvas), u.theme.border);
     let cy = s.height - 174.;
     u.text(
         312.,
@@ -1125,14 +1134,14 @@ fn guides_window(u: &mut Ui, s: &State, x: f32, y: f32) {
         y + 291.,
         "[Tracer]",
         Action::Tool(Tool::Guide),
-        s.tool == Tool::Guide,
+        s.active_mouse_tool() == Some(Tool::Guide),
     );
     u.button(
         x + 120.,
         y + 291.,
         "[Gommer des traits]",
         Action::Tool(Tool::GuideErase),
-        s.tool == Tool::GuideErase,
+        s.active_mouse_tool() == Some(Tool::GuideErase),
     );
     u.text(
         x,

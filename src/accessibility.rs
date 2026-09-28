@@ -1,4 +1,4 @@
-use crate::app::{Action as UiAction, EditMode, Modal, State};
+use crate::app::{Action as UiAction, Modal, State};
 use crate::color_picker::Control;
 use accesskit::{
     Action, ActionData, ActionRequest, Affine, Live, Node, NodeId, Rect, Role, TreeId, TreeInfo,
@@ -107,7 +107,7 @@ pub fn tree(s: &State, scale: f64) -> TreeUpdate {
             .document
             .get(s.cursor.0, s.cursor.1)
             .unwrap_or_default();
-        node.set_label(format!("Canevas {} par {}. Cellule {}, {}. Glyphe {}. Outil {}. Flèches pour déplacer, Entrée pour appliquer.",s.editor.document.width,s.editor.document.height,s.cursor.0,s.cursor.1,ditto::font::character(c.glyph),if s.edit_mode==EditMode::Keyboard {"Clavier : touche = glyphe et avance"}else{s.tool.name()}));
+        node.set_label(format!("Canevas {} par {}. Cellule {}, {}. Glyphe {}. Outil {}. Flèches pour déplacer, Entrée pour appliquer.",s.editor.document.width,s.editor.document.height,s.cursor.0,s.cursor.1,ditto::font::character(c.glyph),s.active_mouse_tool().map_or("Clavier : touche = glyphe et avance", |tool| tool.name())));
         node.set_bounds(Rect::new(
             s.canvas.x as f64,
             s.canvas.y as f64,

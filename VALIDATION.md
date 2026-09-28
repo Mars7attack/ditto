@@ -1,5 +1,30 @@
 # Ditto — validation du 28 septembre 2026
 
+## Indépendance clavier/souris et curseur — 28 septembre 2026
+
+Branche `fix/keyboard-cursor-history`, base `e84ba77` (grille et picker inclus).
+
+- L’outil souris mémorisé est désormais privé. Rendu, routage des entrées et
+  accessibilité obtiennent un outil actif uniquement en mode souris. Le mode
+  clavier conserve ses propres règles ; revenir à la souris restaure l’outil.
+- Trois régressions observées avant correction : Échap conserve une sélection
+  clavier lorsque Texte est mémorisé ; un commit IME avec focus UI passe dans
+  l’outil Texte ; undo/redo restaure le curseur sans ramener la vue sur lui.
+  Les trois tests échouent avant correction, puis passent pour les 11 outils.
+- Une quatrième matrice compare les mêmes séquences de saisie, clic/glissement,
+  sélection, suppression, IME et historique pour chacun des 11 outils souris.
+- Le test GPU a aussi reproduit un recouvrement du curseur par le contour du
+  canevas après redo au bord de la vue. Le curseur est maintenant la dernière
+  surimpression du canevas. Six captures supplémentaires contrôlent ses quatre
+  côtés après tracé, recoloration, changement d’ordre, gomme de guides et
+  historique mêlant modifications des guides et saisie clavier.
+- `scripts/check.sh --native` : format, Clippy strict, 135 tests dont deux GPU,
+  parcours éditeur et shaders, ainsi que les 30 fixtures GPU de grille passent
+  sur Apple M2 / Metal. Preuves : `validation/runtime/keyboard-independence/`
+  et `validation/runtime/native/run-opdqh98n/`.
+- Les scénarios utilisent le routage applicatif et le rendu natif ; les limites
+  d’injection système décrites dans [docs/TESTS.md](docs/TESTS.md) restent applicables.
+
 ## Grille selon la densité d’écran — 28 septembre 2026
 
 Branche `fix/grid-display-scaling`, base `6676a4f` (sélecteur de couleurs inclus).

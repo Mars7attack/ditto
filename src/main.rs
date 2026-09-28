@@ -139,8 +139,10 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.logical_key == Key::Named(NamedKey::Space) {
                     self.state.space = event.state == ElementState::Pressed
-                        && self.state.tool != Tool::Text
-                        && self.state.edit_mode == EditMode::Mouse
+                        && self
+                            .state
+                            .active_mouse_tool()
+                            .is_some_and(|tool| tool != Tool::Text)
                         && self.state.modal.is_none();
                 }
                 if event.state == ElementState::Pressed {
@@ -448,7 +450,7 @@ impl Ditto {
         s.pan = (0., 0.);
         s.trace = false;
         s.grid = false;
-        s.tool = Tool::Pencil;
+        s.activate(Action::Tool(Tool::Pencil));
         s.cursor = (0, 0);
         s.mouse = (0., 0.);
         s.layout(s.width, s.height);
@@ -1124,9 +1126,7 @@ fn route_key(state: &mut State, modifiers: ModifiersState, key: Key, text: Optio
     }
     match &key {
         Key::Named(NamedKey::Space)
-            if state.edit_mode == EditMode::Mouse
-                && state.tool == Tool::Text
-                && state.modal.is_none() =>
+            if state.active_mouse_tool() == Some(Tool::Text) && state.modal.is_none() =>
         {
             state.text_input(" ")
         }
@@ -1200,7 +1200,7 @@ fn route_key(state: &mut State, modifiers: ModifiersState, key: Key, text: Optio
                 state.keyboard_input(text.unwrap_or(c));
                 return;
             }
-            if state.modal.is_some() || state.tool == Tool::Text {
+            if state.modal.is_some() || state.active_mouse_tool() == Some(Tool::Text) {
                 if state.ime.is_empty() {
                     state.text_input(text.unwrap_or(c));
                 }
@@ -1209,8 +1209,12 @@ fn route_key(state: &mut State, modifiers: ModifiersState, key: Key, text: Optio
             let a = match c.to_lowercase().as_str() {
                 "c" => Some(Action::Tool(Tool::Recolor)),
                 "d" => Some(Action::Tool(Tool::Guide)),
-                "[" if state.tool == Tool::Recolor => Some(Action::RecolorSize(-1)),
-                "]" if state.tool == Tool::Recolor => Some(Action::RecolorSize(1)),
+                "[" if state.active_mouse_tool() == Some(Tool::Recolor) => {
+                    Some(Action::RecolorSize(-1))
+                }
+                "]" if state.active_mouse_tool() == Some(Tool::Recolor) => {
+                    Some(Action::RecolorSize(1))
+                }
                 "b" => Some(Action::Tool(Tool::Pencil)),
                 "g" => Some(Action::Tool(Tool::Eraser)),
                 "l" => Some(Action::Tool(Tool::Line)),
@@ -1250,13 +1254,13 @@ mod keyboard_routing_tests {
     #[test]
     fn raw_key_routing_uses_printed_character_and_never_tool_or_zoom_shortcuts() {
         let mut s = state();
-        let tool = s.tool;
+        let tool = s.active_mouse_tool();
         let zoom = s.cell_size;
         for k in ["b", "t", "0", "+", "-"] {
             key(&mut s, k, k, ModifiersState::empty());
         }
         assert_eq!(s.cursor, (3, 0));
-        assert_eq!(s.tool, tool);
+        assert_eq!(s.active_mouse_tool(), tool);
         assert_eq!(s.cell_size, zoom);
         key(&mut s, "l", "@", ModifiersState::ALT);
         assert_eq!(s.cursor, (3, 0));
@@ -1627,7 +1631,7 @@ mod workspace_shortcut_tests {
             Key::Character("c".into()),
             None,
         );
-        assert_eq!(s.tool, Tool::Recolor);
+        assert_eq!(s.active_mouse_tool(), Some(Tool::Recolor));
         route_key(
             &mut s,
             ModifiersState::empty(),
@@ -1641,7 +1645,7 @@ mod workspace_shortcut_tests {
             Key::Character("d".into()),
             None,
         );
-        assert_eq!(s.tool, Tool::Guide);
+        assert_eq!(s.active_mouse_tool(), Some(Tool::Guide));
         s.activate(Action::ToggleEditMode);
         let original = s.editor.document.clone();
         route_key(

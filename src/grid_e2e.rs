@@ -17,7 +17,7 @@ pub fn verify(renderer: &Renderer, dir: &Path) -> Result<()> {
             for (pan_index, pan) in [(0., 0.), (-57.73, 19.41)].into_iter().enumerate() {
                 let mut s = State::new(dir.join("unused-recovery.ditto"));
                 s.modal = None;
-                s.tool = ditto::core::Tool::Guide;
+                s.activate(crate::app::Action::Tool(ditto::core::Tool::Guide));
                 s.grid = true;
                 s.fit = false;
                 s.cell_size = zoom;

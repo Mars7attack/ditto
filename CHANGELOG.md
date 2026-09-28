@@ -2,6 +2,9 @@
 
 ## À paraître
 
+- Mode clavier indépendant de l’outil souris mémorisé, y compris Guides/Gomme
+  guides et Texte. Curseur maintenu dans la vue après annulation/rétablissement
+  et affiché au-dessus du contour du canevas, même au bord de la vue.
 - Grille : lignes alignées sur les pixels physiques, épaisseur d’un pixel quelle
   que soit la densité de l’écran, sans trous au zoom/pan fractionnaire. Régressions
   GPU sur 30 combinaisons d’échelle d’affichage, zoom et déplacement.

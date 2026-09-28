@@ -15,7 +15,7 @@ use ditto::{
 use std::path::Path;
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 
-pub const END: u32 = 28;
+pub const END: u32 = 34;
 pub fn name(frame: u32) -> Option<&'static str> {
     Some(match frame {
         17 => "cursor-after-guide",
@@ -29,6 +29,12 @@ pub fn name(frame: u32) -> Option<&'static str> {
         25 => "picker-foreground",
         26 => "cursor-after-picker-keyboard",
         27 => "cursor-project-reopened",
+        28 => "cursor-guide-stroke-keyboard",
+        29 => "cursor-guide-front-keyboard",
+        30 => "cursor-undo-after-navigation",
+        31 => "cursor-redo-after-navigation",
+        32 => "cursor-guide-eraser-keyboard",
+        33 => "cursor-text-tool-keyboard-escape",
         _ => return None,
     })
 }
@@ -57,6 +63,25 @@ fn drag(s: &mut State, control: Control, to: (f32, f32)) {
     s.mouse_move((r.x + to.0 * r.w, r.y + to.1 * r.h));
     s.mouse_up();
 }
+fn history_key(s: &mut State, redo: bool) {
+    let command = if cfg!(target_os = "macos") {
+        ModifiersState::SUPER
+    } else {
+        ModifiersState::CONTROL
+    };
+    route_key(
+        s,
+        command
+            | if redo {
+                ModifiersState::SHIFT
+            } else {
+                ModifiersState::empty()
+            },
+        Key::Character("z".into()),
+        None,
+    );
+    s.frame();
+}
 pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
     match frame {
         17 => {
@@ -76,7 +101,7 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
             s.frame();
             s.activate(Action::Tool(Tool::Guide));
             click(s, Action::ToggleEditMode)?;
-            ensure!(s.keyboard_active() && s.tool == Tool::Guide);
+            ensure!(s.keyboard_active() && s.active_mouse_tool().is_none());
         }
         18 => {
             key(s, NamedKey::F8);
@@ -163,6 +188,81 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
             s.fit = true;
             ensure!(s.edit_mode == EditMode::Keyboard);
         }
+        28 => {
+            s.editor = Editor::new(Document::new(24, 16).unwrap());
+            s.fit = true;
+            key(s, NamedKey::F8);
+            click(s, Action::Tool(Tool::Guide))?;
+            let point = |x: f32| {
+                (
+                    s.origin.0 + x * s.cell_width(),
+                    s.origin.1 + 5.5 * s.cell_size,
+                )
+            };
+            let (a, b) = (point(2.), point(20.));
+            s.mouse_move(a);
+            s.mouse_down(false);
+            s.mouse_move(b);
+            s.mouse_up();
+            ensure!(s.editor.document.guides.strokes.len() == 1);
+            click(s, Action::ToggleEditMode)?;
+            let guides = s.editor.document.guides.clone();
+            s.mouse_move((
+                s.origin.0 + 6.5 * s.cell_width(),
+                s.origin.1 + 5.5 * s.cell_size,
+            ));
+            s.mouse_down(false);
+            s.mouse_up();
+            ensure!(s.cursor == (6, 5) && s.editor.document.guides == guides);
+        }
+        29 => {
+            key(s, NamedKey::F8);
+            click(s, Action::GuideAbove)?;
+            click(s, Action::GuideColor)?;
+            s.text_input("42a5f5");
+            click(s, Action::Submit)?;
+            click(s, Action::GuideRecolorAll)?;
+            key(s, NamedKey::Escape);
+            s.keyboard_input("a");
+            ensure!(s.cursor == (7, 5));
+        }
+        30 => {
+            s.fit = false;
+            s.cell_size = 100.;
+            s.frame();
+            s.move_cursor(16, 10, false);
+            history_key(s, false); // Keyboard edit, followed by guide recolour.
+            ensure!(s.cursor == (6, 5));
+            history_key(s, false);
+            ensure!(s.editor.document.guides.strokes[0].color != [66, 165, 245]);
+        }
+        31 => {
+            s.move_cursor(17, 10, false);
+            history_key(s, true);
+            ensure!(s.editor.document.guides.strokes[0].color == [66, 165, 245]);
+            history_key(s, true);
+            ensure!(s.cursor == (7, 5));
+        }
+        32 => {
+            key(s, NamedKey::F8);
+            click(s, Action::Tool(Tool::GuideErase))?;
+            click(s, Action::ToggleEditMode)?;
+            s.move_cursor(1, 0, true);
+            key(s, NamedKey::Escape);
+            ensure!(s.editor.selection.is_none());
+            s.keyboard_input("b");
+        }
+        33 => {
+            click(s, Action::ToggleEditMode)?;
+            click(s, Action::Tool(Tool::Text))?;
+            click(s, Action::ToggleEditMode)?;
+            s.move_cursor(1, 0, true);
+            key(s, NamedKey::Escape);
+            ensure!(s.editor.selection.is_none());
+            click(s, Action::ToggleEditMode)?;
+            ensure!(s.active_mouse_tool() == Some(Tool::Text));
+            click(s, Action::ToggleEditMode)?;
+        }
         _ => return Ok(()),
     }
     s.frame();
@@ -176,6 +276,10 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
         probes.push((h.x + h.w / 6., h.y + 11., [255, 255, 0]));
     } else {
         ensure!(s.keyboard_active(), "Keyboard blocked at {name}");
+        ensure!(
+            s.active_mouse_tool().is_none(),
+            "Mouse tool active in keyboard mode at {name}"
+        );
         let x = (s.cursor.0 as f32 * s.cell_width())
             .min(s.editor.document.width as f32 * s.cell_width() - 2.);
         let p = (
@@ -184,6 +288,24 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
         );
         ensure!(s.canvas.contains(p), "Caret off canvas at {name}");
         probes.push((p.0, p.1, s.theme().accent));
+        if frame >= 28 {
+            let left = s.origin.0 + x;
+            let top = s.origin.1 + s.cursor.1 as f32 * s.cell_size;
+            let width = if s.cursor.0 == s.editor.document.width as i32 {
+                2.
+            } else {
+                s.cell_width()
+            };
+            // Check all four edges, not merely that some caret geometry exists.
+            for (x, y) in [
+                (left + width - 0.5, top + s.cell_size / 2.),
+                (left + width / 2., top + 0.5),
+                (left + width / 2., top + s.cell_size - 0.5),
+            ] {
+                ensure!(s.canvas.contains((x, y)), "Caret edge off canvas at {name}");
+                probes.push((x, y, s.theme().accent));
+            }
+        }
     }
     std::fs::write(
         dir.join(format!("{name}.json")),
@@ -213,7 +335,7 @@ pub fn verify(dir: &Path) -> Result<()> {
     }
     std::fs::write(
         dir.join("e2e-result.txt"),
-        "PASS: picker hit testing, drag, keyboard, validation, mode cycles, focus, guides, shaders, zoom, cursor GPU pixels, project roundtrip and clean export\n",
+        "PASS: picker hit testing, drag, keyboard, validation, mode cycles, focus, guides, shaders, zoom, cursor GPU pixels, project roundtrip and clean export; mouse-tool isolation, mixed guide/keyboard undo/redo, all four caret edges at viewport boundary\n",
     )?;
     Ok(())
 }
