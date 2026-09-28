@@ -5,10 +5,27 @@ en l’absence de sélection. L’aperçu se zoome à la molette ou avec −/+, 
 en glissant et se recentre avec **Ajuster**. Aucun aperçu n’est tronqué par un
 nombre maximal de caractères : le clipping concerne seulement la fenêtre.
 
-**Enregistrer .txt** écrit cet instantané en UTF-8, sans BOM, avec fins de ligne LF.
-Les espaces de début/fin, lignes vides et glyphes Unicode sont conservés exactement.
+**Enregistrer .txt** écrit la sortie choisie en UTF-8, sans BOM, avec fins de ligne LF.
+Sans l’option braille décrite ci-dessous, espaces, lignes vides et glyphes Unicode
+sont conservés exactement.
 L’écriture utilise le remplacement atomique existant. Le fichier contient toujours
 la totalité de la portée, indépendamment du format de copie ou du bloc affiché.
+
+## Alignement du braille
+
+Pour un dessin composé uniquement de braille et de cellules vides, **Aligner le
+braille** est activé par défaut. Les espaces ordinaires et insécables sont remplacés
+dans la sortie par le motif vide U+2800. Les points, lignes, nombre de cellules et
+document restent identiques. L’option s’applique au fichier, au presse-papiers,
+au HTML et aux blocs Markdown/Discord. La décocher restitue le texte source exact.
+Les dessins vides ou mêlant braille et caractères ordinaires ne sont pas convertis.
+
+Ce choix évite qu’une police de secours donne aux glyphes braille une largeur
+différente de celle des espaces de la police monospace principale. U+2800 est un
+[motif braille vide, et non un espace typographique](https://www.unicode.org/charts/nameslist/n_2800.html).
+L’apparence des points et les proportions globales peuvent encore varier avec la
+police destinataire ; cette option corrige le décalage cumulatif des colonnes.
+[Diagnostic mesuré et scripts de comparaison](BRAILLE-EXPORT-DIAGNOSTIC.md).
 
 ## Formats de copie
 
@@ -26,7 +43,8 @@ la totalité de la portée, indépendamment du format de copie ou du bloc affich
   choisissent le bloc affiché et copié ; copier puis coller chaque bloc dans l’ordre.
 
 La concaténation des corps Discord avec un saut de ligne restitue exactement
-l’instantané. Une ligne trop longue ou trois accents graves consécutifs déclenchent
+la sortie sélectionnée, y compris ses blancs braille si l’option est active.
+Une ligne trop longue ou trois accents graves consécutifs déclenchent
 un message explicite proposant le `.txt`, plutôt qu’une réécriture invisible ou une
 troncature. Pour un dessin long à partager en un seul objet, joindre directement le `.txt`.
 
@@ -43,3 +61,5 @@ perte, navigation des blocs, zoom/pan sans mutation du dessin, disposition minim
 et captures natives. Les tests n’envoient aucun message sur Discord et ne remplacent
 pas le presse-papiers de la session utilisateur ; ils vérifient les payloads produits
 par le chemin de copie et les fichiers écrits par le chemin d’export.
+Un test macOS supplémentaire rend réellement le fichier exporté avec CoreText et
+contrôle l’avance de chaque glyphe, espaces inclus. Il s’exécute aussi en CI macOS.

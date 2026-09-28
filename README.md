@@ -196,6 +196,9 @@ pause d’édition, séparément du projet. Il est proposé à la prochaine ouve
   espaces d’alignement et lignes vides. Aperçu zoomable et déplaçable, copie
   texte/monospace, Markdown ou Discord. Les grands dessins se copient par blocs
   Discord de 2 000 caractères maximum, sans couper les lignes. [Formats et usage](docs/TEXT-EXPORT.md).
+  Pour le braille pur, **Aligner le braille** utilise des blancs U+2800 afin que les
+  espaces et les motifs aient la même avance typographique. Décocher pour retrouver
+  les caractères source exacts. [Diagnostic et scripts](docs/BRAILLE-EXPORT-DIAGNOSTIC.md).
 - **PNG** : grille entière, cellules SF Mono de 8 × 16 pixels, échelle ×1/×2/×4,
   transparence ou fond opaque. Ni référence ni aides d’édition.
 

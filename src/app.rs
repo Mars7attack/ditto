@@ -103,6 +103,7 @@ pub enum Action {
     CopyExport,
     SaveText,
     TextFormat(TextFormat),
+    TextBrailleAlignment,
     TextPart(i32),
     TextZoom(bool),
     TextFit,
@@ -992,6 +993,13 @@ impl State {
                 self.text_preview_zoom = None;
                 self.text_preview_pan = (0., 0.);
             }
+            Action::TextBrailleAlignment => {
+                if let Some(Modal::Text { export }) = &mut self.modal {
+                    export.set_braille_alignment(!export.align_braille);
+                }
+                self.text_preview_zoom = None;
+                self.text_preview_pan = (0., 0.);
+            }
             Action::TextPart(delta) => {
                 if let Some(Modal::Text { export }) = &mut self.modal {
                     export.change_part(delta);
@@ -1047,8 +1055,9 @@ impl State {
                 };
                 match result {
                     Ok(()) => {
-                        self.status =
-                            "Texte copié. Les espaces et les lignes sont conservés.".into();
+                        self.status = if matches!(&self.modal, Some(Modal::Text { export }) if export.align_braille) {
+                            "Texte copié avec blancs braille pour garder les colonnes alignées."
+                        } else { "Texte copié. Les espaces et les lignes sont conservés." }.into();
                     }
                     Err(e) => self.status = e,
                 }

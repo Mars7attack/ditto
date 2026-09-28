@@ -15,7 +15,7 @@ use ditto::{
 use std::path::Path;
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 
-pub const END: u32 = 42;
+pub const END: u32 = 44;
 pub fn name(frame: u32) -> Option<&'static str> {
     Some(match frame {
         17 => "cursor-after-guide",
@@ -43,6 +43,8 @@ pub fn name(frame: u32) -> Option<&'static str> {
         39 => "text-export-monospaced",
         40 => "text-export-discord",
         41 => "text-export-zoomed",
+        42 => "text-export-braille-aligned",
+        43 => "text-export-braille-source",
         _ => return None,
     })
 }
@@ -415,6 +417,48 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
             s.mouse_move((s.mouse.0 + 80., s.mouse.1 + 60.));
             s.mouse_up();
             ensure!(s.text_preview_pan != (0., 0.));
+        }
+        42 => {
+            key(s, NamedKey::Escape);
+            let mut doc = Document::new(48, 32).unwrap();
+            for y in 0..24 {
+                for x in y..48 - y {
+                    doc.set(
+                        x,
+                        y + 3,
+                        ditto::core::Cell {
+                            glyph: ditto::font::glyph('⣿').unwrap(),
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
+            s.editor = Editor::new(doc);
+            click(s, Action::CopyText)?;
+            click(s, Action::TextFormat(ditto::text_export::Format::Discord))?;
+            if let Some(Modal::Text { export }) = &s.modal {
+                ensure!(export.align_braille && !export.output().contains(' '));
+                ensure!(export.parts.as_ref().unwrap().len() == 1);
+                ensure!(export.payload().unwrap().encode_utf16().count() == 1575);
+                export.save(&dir.join("aligned-braille.txt"))?;
+                ensure!(
+                    std::fs::read_to_string(dir.join("aligned-braille.txt"))?
+                        == export.content.replace(' ', "\u{2800}")
+                );
+            } else {
+                anyhow::bail!("Missing braille export");
+            }
+        }
+        43 => {
+            click(s, Action::TextBrailleAlignment)?;
+            if let Some(Modal::Text { export }) = &s.modal {
+                ensure!(!export.align_braille);
+                ensure!(export.output() == s.editor.document.text(None));
+                export.save(&dir.join("source-braille.txt"))?;
+                ensure!(std::fs::read_to_string(dir.join("source-braille.txt"))? == export.content);
+            } else {
+                anyhow::bail!("Missing braille export");
+            }
         }
         _ => return Ok(()),
     }

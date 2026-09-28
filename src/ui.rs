@@ -1139,14 +1139,19 @@ fn text_export_window(u: &mut Ui, s: &State, export: &ditto::text_export::Export
         44.,
         140.,
         &format!(
-            "{} · {} colonnes × {} lignes · espaces et lignes vides conservés",
+            "{} · {} colonnes × {} lignes · {}",
             if export.selection {
                 "Sélection"
             } else {
                 "Grille entière"
             },
             export.width,
-            export.height
+            export.height,
+            if export.align_braille {
+                "blancs braille pour l’alignement"
+            } else {
+                "espaces et lignes vides conservés"
+            }
         ),
         u.theme.muted,
     );
@@ -1157,6 +1162,19 @@ fn text_export_window(u: &mut Ui, s: &State, export: &ditto::text_export::Export
             &format!("[{}]", format.label()),
             Action::TextFormat(format),
             export.format == format,
+        );
+    }
+    if export.braille_compatible {
+        u.button(
+            512.,
+            172.,
+            if export.align_braille {
+                "[x] Aligner le braille"
+            } else {
+                "[ ] Aligner le braille"
+            },
+            Action::TextBrailleAlignment,
+            export.align_braille,
         );
     }
     if let Ok(parts) = &export.parts
@@ -1173,6 +1191,9 @@ fn text_export_window(u: &mut Ui, s: &State, export: &ditto::text_export::Export
     }
     let hint = match &export.parts {
         Err(e) => e.as_str(),
+        Ok(_) if export.align_braille => {
+            "Les espaces utilisent le blanc braille U+2800. Décocher pour exporter les caractères source exacts."
+        }
         Ok(_) => match export.format {
             Format::Plain => {
                 "Texte exact + version monospace pour les apps compatibles. Sinon, choisir une police monospace."
@@ -1219,7 +1240,7 @@ fn text_export_window(u: &mut Ui, s: &State, export: &ditto::text_export::Export
         s.height - 158.,
         &format!(
             "{} octets UTF-8 · {} caractères à copier · couleurs et effets : utiliser l’export PNG",
-            export.content.len(),
+            export.output().len(),
             count
         ),
         u.theme.muted,

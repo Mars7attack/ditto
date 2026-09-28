@@ -2,6 +2,10 @@
 
 ## À paraître
 
+- Export braille : mode d’alignement automatique et réversible avec blancs U+2800,
+  pour éviter les contours déformés par les largeurs différentes des espaces et
+  glyphes de secours. Scripts de comparaison des captures et de rendu CoreText,
+  avec test réel des avances de police sur macOS.
 - Palette : le picker FG modifie la case sélectionnée et la brosse ensemble,
   avec annulation/rétablissement synchronisés et sélection distincte des doublons.
 - Chromatique : interpolation en lumière linéaire, décalages sous-pixel et

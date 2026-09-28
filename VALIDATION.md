@@ -1,5 +1,31 @@
 # Ditto — validation du 28 septembre 2026
 
+## Déformation du braille exporté — 28 septembre 2026
+
+Branche `fix/braille-export-geometry`, base `793d06c`.
+
+- Scripts de comparaison des deux captures utilisateur : 2 069 points dans chaque
+  image, mêmes 85 rangées, mais 322 abscisses au lieu de 91. Modèle d’avances
+  distinctes ajusté à 0,12 pixel RMS, confirmé à trois seuils de segmentation.
+- Reproduction native CoreText : Menlo-Regular donne 13,245117 px aux espaces,
+  AppleBraille 15,039062 px aux glyphes. Les blancs U+2800 prennent cette dernière
+  avance. Après correction, aucune différence de topologie des points sur la grille
+  normalisée, intersection/union 1,0. Détail dans `docs/BRAILLE-EXPORT-DIAGNOSTIC.md`.
+- Mode activé automatiquement pour le braille pur, désactivable pour le texte
+  source exact ; fichiers et formats de copie partagent la même sortie préparée.
+  Document et glyphes portant des points inchangés ; texte mixte non converti.
+- 151 tests passent localement sur macOS, dont les quatre GPU et un nouveau test
+  du fichier exporté dans CoreText via Swift. La suite Linux compte 150 tests,
+  le test CoreText étant spécifique à macOS. Formatage et Clippy strict passent.
+- Parcours natifs et grille GPU passent, avec deux scènes supplémentaires pour
+  la sortie braille alignée et le retour au texte source. Capture de l’option inspectée.
+  Preuves : `validation/runtime/braille-export/` et
+  `validation/runtime/native/run-ynz3as80/`.
+- L’investigation utilise les captures et une reconstitution diagnostique ; aucun
+  fichier source utilisateur n’a été fourni. Aucun message Discord n’a été envoyé.
+  Les polices peuvent encore modifier les proportions globales et la forme des
+  points ; la correction vise la déformation cumulative constatée.
+
 ## Palette, chromatique, sliders et export texte — 28 septembre 2026
 
 Branche `feat/palette-shaders-text-export`, base `918e582` ; version 0.1.0 / X0005

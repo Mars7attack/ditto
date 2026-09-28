@@ -274,6 +274,62 @@ fn shader_sliders_expose_accessible_values_and_new_panels_fit_minimum_size() {
         }
     }
 }
+
+#[test]
+fn braille_alignment_toggle_is_explicit_shared_by_file_and_copy_and_preserves_document() {
+    let mut s = state();
+    s.editor.document.set(
+        3,
+        3,
+        Cell {
+            glyph: ditto::font::glyph('⡖').unwrap(),
+            ..Cell::default()
+        },
+    );
+    let before = s.editor.document.clone();
+    s.layout(1120., 720.);
+    s.activate(Action::CopyText);
+    s.frame();
+    assert!(
+        s.hits
+            .iter()
+            .any(|h| h.action == Action::TextBrailleAlignment)
+    );
+    click(
+        &mut s,
+        Action::TextFormat(ditto::text_export::Format::Discord),
+    );
+    if let Some(Modal::Text { export }) = &s.modal {
+        assert!(export.align_braille);
+        assert!(export.output().contains('\u{2800}'));
+        assert!(!export.output().contains(' '));
+    } else {
+        panic!();
+    }
+    click(&mut s, Action::TextBrailleAlignment);
+    if let Some(Modal::Text { export }) = &s.modal {
+        assert!(!export.align_braille);
+        assert_eq!(export.output(), before.text(None));
+        assert_eq!(export.preview(), before.text(None));
+    } else {
+        panic!();
+    }
+    click(&mut s, Action::TextBrailleAlignment);
+    for (i, a) in s.hits.iter().enumerate() {
+        for b in &s.hits[i + 1..] {
+            let r = a.rect.intersect(b.rect);
+            assert!(
+                r.w <= 0. || r.h <= 0.,
+                "overlap: {:?} {:?}",
+                a.action,
+                b.action
+            );
+        }
+    }
+    assert_eq!(s.editor.document, before);
+    s.activate(Action::Cancel);
+    assert_eq!(s.editor.document, before);
+}
 fn key(s: &mut State, key: NamedKey) {
     route_key(s, ModifiersState::empty(), Key::Named(key), None);
     s.frame();

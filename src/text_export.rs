@@ -1,4 +1,5 @@
-//! Lossless text export. Formatting is a transport envelope, never a glyph rewrite.
+//! Text export with explicit, reversible braille spacing compatibility.
+//! The document/source snapshot stays intact; only exported blank cells change.
 use crate::{
     core::{Document, Rect},
     project,
@@ -31,37 +32,75 @@ pub struct Export {
     pub format: Format,
     pub part: usize,
     pub parts: Result<Vec<String>, String>,
+    pub braille_compatible: bool,
+    pub align_braille: bool,
+    output: String,
 }
 impl Export {
     pub fn new(doc: &Document, selection: Option<Rect>) -> Self {
         let r = selection.unwrap_or(doc.bounds()).intersection(doc.bounds());
         let content = doc.text(Some(r));
-        Self {
+        let braille_compatible = content
+            .chars()
+            .all(|c| matches!(c, ' ' | '\n' | '\u{a0}' | '\u{2800}'..='\u{28ff}'))
+            && content
+                .chars()
+                .any(|c| matches!(c, '\u{2801}'..='\u{28ff}'));
+        let mut export = Self {
             width: r.w as usize,
             height: r.h as usize,
             selection: selection.is_some(),
-            parts: Ok(vec![content.clone()]),
+            parts: Ok(Vec::new()),
             content,
             format: Format::Plain,
             part: 0,
-        }
+            braille_compatible,
+            align_braille: braille_compatible,
+            output: String::new(),
+        };
+        export.refresh();
+        export
     }
     pub fn set_format(&mut self, format: Format) {
         self.format = format;
+        self.refresh();
+    }
+    pub fn set_braille_alignment(&mut self, enabled: bool) {
+        self.align_braille = enabled && self.braille_compatible;
+        self.refresh();
+    }
+    pub fn output(&self) -> &str {
+        &self.output
+    }
+    fn refresh(&mut self) {
         self.part = 0;
-        self.parts = match format {
-            Format::Plain => Ok(vec![self.content.clone()]),
+        self.output = if self.align_braille {
+            self.content
+                .chars()
+                .map(|c| {
+                    if matches!(c, ' ' | '\u{a0}') {
+                        '\u{2800}'
+                    } else {
+                        c
+                    }
+                })
+                .collect()
+        } else {
+            self.content.clone()
+        };
+        self.parts = match self.format {
+            Format::Plain => Ok(vec![self.output.clone()]),
             Format::Markdown => {
                 let mut longest = 0;
                 let mut run = 0;
-                for c in self.content.chars() {
+                for c in self.output.chars() {
                     run = if c == '`' { run + 1 } else { 0 };
                     longest = longest.max(run);
                 }
                 let fence = "`".repeat((longest + 1).max(3));
-                Ok(vec![format!("{fence}\n{}\n{fence}", self.content)])
+                Ok(vec![format!("{fence}\n{}\n{fence}", self.output)])
             }
-            Format::Discord => discord_parts(&self.content),
+            Format::Discord => discord_parts(&self.output),
         };
     }
     pub fn payload(&self) -> Result<&str, &str> {
@@ -79,9 +118,9 @@ impl Export {
                 .ok()
                 .and_then(|s| s.strip_prefix("```\n"))
                 .and_then(|s| s.strip_suffix("\n```"))
-                .unwrap_or(&self.content)
+                .unwrap_or(&self.output)
         } else {
-            &self.content
+            &self.output
         }
     }
     pub fn preview_height(&self) -> usize {
@@ -95,13 +134,13 @@ impl Export {
     }
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
         project::atomic_write(path, |file| {
-            file.write_all(self.content.as_bytes())?;
+            file.write_all(self.output.as_bytes())?;
             Ok(())
         })
     }
     pub fn html(&self) -> String {
         let escaped = self
-            .content
+            .output
             .replace('&', "&amp;")
             .replace('<', "&lt;")
             .replace('>', "&gt;");
