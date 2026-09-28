@@ -2563,7 +2563,7 @@ impl State {
         self.text_preview_zoom.unwrap_or(
             ((r.w - 24.) / (export.width.max(1) as f32 * 8.))
                 .min((r.h - 24.) / (export.preview_height().max(1) as f32 * 16.))
-                .clamp(0.05, 2.),
+                .clamp(0.01, 2.),
         )
     }
     pub fn text_preview_board(&self) -> ScreenRect {
@@ -2590,7 +2590,7 @@ impl State {
         let old = self.text_preview_scale();
         let board = self.text_preview_board();
         let point = ((p.0 - board.x) / old, (p.1 - board.y) / old);
-        self.text_preview_zoom = Some((old * factor).clamp(0.05, 16.));
+        self.text_preview_zoom = Some((old * factor).clamp(0.01, 16.));
         self.text_preview_pan = (0., 0.);
         let board = self.text_preview_board();
         let scale = self.text_preview_scale();

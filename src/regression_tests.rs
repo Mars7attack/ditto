@@ -214,6 +214,14 @@ fn text_export_formats_preview_and_file_leave_the_document_unchanged() {
     key(&mut s, NamedKey::Escape);
     assert!(s.modal.is_none());
     assert!(s.keyboard_active() && caret_is_drawn(&mut s));
+    s.editor = Editor::new(Document::new(512, 512).unwrap());
+    s.layout(1120., 720.);
+    s.activate(Action::CopyText);
+    let area = s.text_preview_rect();
+    let board = s.text_preview_board();
+    assert!(board.w <= area.w - 24. && board.h <= area.h - 24.);
+    assert!(area.contains((board.x, board.y)));
+    assert!(area.contains((board.x + board.w, board.y + board.h)));
 }
 
 #[test]
