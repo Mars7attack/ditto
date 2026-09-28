@@ -15,7 +15,7 @@ use ditto::{
 use std::path::Path;
 use winit::keyboard::{Key, ModifiersState, NamedKey};
 
-pub const END: u32 = 34;
+pub const END: u32 = 42;
 pub fn name(frame: u32) -> Option<&'static str> {
     Some(match frame {
         17 => "cursor-after-guide",
@@ -35,6 +35,14 @@ pub fn name(frame: u32) -> Option<&'static str> {
         31 => "cursor-redo-after-navigation",
         32 => "cursor-guide-eraser-keyboard",
         33 => "cursor-text-tool-keyboard-escape",
+        34 => "palette-picker-edited",
+        35 => "palette-swatch-synchronized",
+        36 => "chromatic-original",
+        37 => "chromatic-slider-live",
+        38 => "chromatic-slider-committed",
+        39 => "text-export-monospaced",
+        40 => "text-export-discord",
+        41 => "text-export-zoomed",
         _ => return None,
     })
 }
@@ -263,6 +271,151 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
             ensure!(s.active_mouse_tool() == Some(Tool::Text));
             click(s, Action::ToggleEditMode)?;
         }
+        34 => {
+            click(s, Action::Palette(3))?;
+            click(s, Action::Foreground)?;
+            drag(s, Control::Hue, (2. / 3., 0.5));
+            drag(s, Control::Plane, (1., 0.8));
+            ensure!(s.color_picker.rgb() == [0, 0, 51]);
+        }
+        35 => {
+            click(s, Action::Submit)?;
+            ensure!(s.editor.document.palette[3] == [0, 0, 51] && s.brush.cell.fg == [0, 0, 51]);
+            history_key(s, false);
+            ensure!(
+                s.brush.cell.fg == s.editor.document.palette[3] && s.brush.cell.fg != [0, 0, 51]
+            );
+            history_key(s, true);
+            ensure!(s.brush.cell.fg == [0, 0, 51]);
+        }
+        36 => {
+            let mut doc = Document::new(32, 12).unwrap();
+            for (row, (label, color)) in [
+                ("PURE BLUE", [0, 0, 255]),
+                ("DARK BLUE", [0, 0, 48]),
+                ("NAVY BLUE", [8, 16, 64]),
+                ("WHITE", [255; 3]),
+                ("CYAN", [0, 180, 220]),
+                ("RED", [200, 0, 0]),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                for (x, ch) in format!("{label:10}  ⣿⣿  ███  ▓▒░").chars().enumerate()
+                {
+                    doc.set(
+                        x as i32 + 1,
+                        row as i32 * 2 + 1,
+                        ditto::core::Cell {
+                            glyph: ditto::font::glyph(ch).unwrap(),
+                            fg: color,
+                            bg: None,
+                        },
+                    );
+                }
+            }
+            s.editor = Editor::new(doc);
+            s.activate(Action::Shaders);
+            click(s, Action::ShaderAdd(Kind::Chromatic))?;
+            click(s, Action::ShaderPreviewFit)?;
+            s.set_shader_value(1, 0.);
+            project::export_png(
+                &dir.join("chromatic-source.png"),
+                &s.editor.document,
+                4,
+                None,
+            )?;
+        }
+        37 => {
+            let r = s.shader_slider_rect(1);
+            s.mouse_move((r.x + 5., r.y + 11.));
+            s.mouse_down(false);
+            s.mouse_move((r.x + 17.5, r.y + 11.));
+            ensure!(s.editor.pending());
+            ensure!((s.editor.document.shaders.layers[0].params[0] - 2.8).abs() < 0.001);
+        }
+        38 => {
+            s.mouse_up();
+            ensure!(!s.editor.pending());
+            history_key(s, false);
+            ensure!(s.editor.document.shaders.layers[0].params[0] == 0.);
+            history_key(s, true);
+            ensure!((s.editor.document.shaders.layers[0].params[0] - 2.8).abs() < 0.001);
+            project::export_png(
+                &dir.join("chromatic-result.png"),
+                &s.editor.document,
+                4,
+                None,
+            )?;
+            let path = dir.join("palette-sliders.ditto");
+            project::save(&path, &s.editor.document)?;
+            ensure!(project::load(&path)? == s.editor.document);
+        }
+        39 => {
+            key(s, NamedKey::Escape);
+            click(s, Action::CopyText)?;
+            if let Some(Modal::Text { export }) = &s.modal {
+                let path = dir.join("drawing.txt");
+                export.save(&path)?;
+                ensure!(std::fs::read_to_string(path)? == s.editor.document.text(None));
+                std::fs::write(dir.join("copy-monospaced.html"), export.html())?;
+            } else {
+                anyhow::bail!("Missing text export");
+            }
+        }
+        40 => {
+            key(s, NamedKey::Escape);
+            s.editor.edit(|doc| {
+                doc.resize(80, 50).unwrap();
+                for y in 14..50 {
+                    for (x, ch) in format!("ROW {y:02}   ⣿⡖⢲⣆⣰   /\\__()[]{{}}_   ♥ ♦ ♣ ♠")
+                        .chars()
+                        .enumerate()
+                    {
+                        doc.set(
+                            x as i32,
+                            y,
+                            ditto::core::Cell {
+                                glyph: ditto::font::glyph(ch).unwrap(),
+                                ..Default::default()
+                            },
+                        );
+                    }
+                }
+            });
+            click(s, Action::CopyText)?;
+            click(s, Action::TextFormat(ditto::text_export::Format::Discord))?;
+            click(s, Action::TextPart(1))?;
+            if let Some(Modal::Text { export }) = &s.modal {
+                let parts = export.parts.as_ref().map_err(|e| anyhow::anyhow!("{e}"))?;
+                ensure!(parts.len() > 1 && export.part == 1);
+                let mut bodies = Vec::new();
+                for (i, part) in parts.iter().enumerate() {
+                    ensure!(part.encode_utf16().count() <= 2000);
+                    std::fs::write(dir.join(format!("discord-part-{}.txt", i + 1)), part)?;
+                    bodies.push(
+                        part.strip_prefix("```\n")
+                            .unwrap()
+                            .strip_suffix("\n```")
+                            .unwrap(),
+                    );
+                }
+                ensure!(bodies.join("\n") == s.editor.document.text(None));
+                export.save(&dir.join("drawing-large.txt"))?;
+            } else {
+                anyhow::bail!("Missing text export");
+            }
+        }
+        41 => {
+            click(s, Action::TextFormat(ditto::text_export::Format::Markdown))?;
+            click(s, Action::TextZoom(true))?;
+            let r = s.text_preview_rect();
+            s.mouse_move((r.x + r.w / 2., r.y + r.h / 2.));
+            s.mouse_down(false);
+            s.mouse_move((s.mouse.0 + 80., s.mouse.1 + 60.));
+            s.mouse_up();
+            ensure!(s.text_preview_pan != (0., 0.));
+        }
         _ => return Ok(()),
     }
     s.frame();
@@ -274,6 +427,15 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
         probes.push((r.x + 475., 358., s.color_picker.rgb()));
         let h = color_picker::rect(s.width, Control::Hue);
         probes.push((h.x + h.w / 6., h.y + 11., [255, 255, 0]));
+    } else if matches!(s.modal, Some(Modal::Shaders)) {
+        let rect = s.shader_slider_rect(1);
+        probes.push((rect.x + 50., rect.y + 10., s.theme().border));
+        if frame >= 37 {
+            probes.push((rect.x + 2., rect.y + 10., s.theme().accent));
+        }
+    } else if matches!(s.modal, Some(Modal::Text { .. })) {
+        let r = s.text_preview_rect();
+        probes.push((r.x + r.w - 5., r.y + 5., s.theme().canvas));
     } else {
         ensure!(s.keyboard_active(), "Keyboard blocked at {name}");
         ensure!(
@@ -288,7 +450,16 @@ pub fn prepare(s: &mut State, frame: u32, dir: &Path) -> Result<()> {
         );
         ensure!(s.canvas.contains(p), "Caret off canvas at {name}");
         probes.push((p.0, p.1, s.theme().accent));
-        if frame >= 28 {
+        if frame == 35 {
+            let r = s
+                .hits
+                .iter()
+                .find(|h| h.action == Action::Palette(3))
+                .unwrap()
+                .rect;
+            probes.push((r.x + 7., r.y + 7., [0, 0, 51]));
+        }
+        if (28..34).contains(&frame) {
             let left = s.origin.0 + x;
             let top = s.origin.1 + s.cursor.1 as f32 * s.cell_size;
             let width = if s.cursor.0 == s.editor.document.width as i32 {
@@ -336,9 +507,9 @@ pub fn verify(dir: &Path) -> Result<()> {
             // exactly between two physical pixel centres. Accept either tied
             // nearest pixel, only across the tested edge (never along it).
             // Away from an exact tie, ceil - 1 == floor: no search tolerance.
-            let alternate = if frame >= 28 && edge < 2 {
+            let alternate = if (28..34).contains(&frame) && edge < 2 {
                 ((sx.ceil() as u32).saturating_sub(1), py)
-            } else if frame >= 28 {
+            } else if (28..34).contains(&frame) {
                 (px, (sy.ceil() as u32).saturating_sub(1))
             } else {
                 (px, py)

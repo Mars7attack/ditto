@@ -8,6 +8,7 @@ use ditto::{
     font, project,
     settings::{self, Settings, Theme, Token},
     shaders::{self, Kind, Layer, Stack},
+    text_export::{Export as TextExport, Format as TextFormat},
 };
 use std::{
     collections::BTreeMap,
@@ -31,6 +32,11 @@ struct KeyEdit {
 struct PreviewDrag {
     mouse: (f32, f32),
     pan: (f32, f32),
+}
+#[derive(Clone, Copy)]
+struct ShaderDrag {
+    layer: usize,
+    parameter: usize,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action {
@@ -95,6 +101,11 @@ pub enum Action {
     AddColor,
     ColorControl(ColorControl),
     CopyExport,
+    SaveText,
+    TextFormat(TextFormat),
+    TextPart(i32),
+    TextZoom(bool),
+    TextFit,
     Settings,
     ThemePreset(usize),
     ThemeColor(Token),
@@ -114,6 +125,7 @@ pub enum Action {
     ShaderMove(usize, i32),
     ShaderRemove(usize),
     ShaderAdjust(usize, i32),
+    ShaderSlider(usize),
     ShaderColor(usize),
     ShaderEnabled,
     ShaderBefore,
@@ -133,7 +145,7 @@ pub enum Modal {
     Color { value: String, target: ColorTarget },
     Loss { next: Action },
     Export { scale: u32, opaque: bool },
-    Text { content: String },
+    Text { export: Box<TextExport> },
     Help,
     Recovery,
     Charsets,
@@ -207,6 +219,7 @@ pub struct State {
     pub recolor_radius: i32,
     pub editor: Editor,
     pub brush: Brush,
+    foreground_palette: Option<usize>,
     // Remembered only for mouse mode. Readers must use active_mouse_tool().
     mouse_tool: Tool,
     pub edit_mode: EditMode,
@@ -265,6 +278,10 @@ pub struct State {
     pub shader_preview_zoom: Option<f32>,
     pub shader_preview_pan: (f32, f32),
     shader_preview_drag: Option<PreviewDrag>,
+    shader_drag: Option<ShaderDrag>,
+    pub text_preview_zoom: Option<f32>,
+    pub text_preview_pan: (f32, f32),
+    text_preview_drag: Option<PreviewDrag>,
     pub shader_error: Option<String>,
 }
 impl State {
@@ -280,6 +297,7 @@ impl State {
             recolor_radius: 0,
             editor: Editor::new(Document::new(80, 50).unwrap()),
             brush: Brush::default(),
+            foreground_palette: Some(3),
             mouse_tool: Tool::Pencil,
             edit_mode: EditMode::Mouse,
             charset: 3,
@@ -344,6 +362,10 @@ impl State {
             shader_preview_zoom: None,
             shader_preview_pan: (0., 0.),
             shader_preview_drag: None,
+            shader_drag: None,
+            text_preview_zoom: None,
+            text_preview_pan: (0., 0.),
+            text_preview_drag: None,
             shader_error: None,
         }
     }
@@ -475,6 +497,12 @@ impl State {
     }
     fn reset(&mut self, doc: Document, path: Option<PathBuf>, recovered: bool) {
         self.editor = Editor::new(doc);
+        self.foreground_palette = self
+            .editor
+            .document
+            .palette
+            .iter()
+            .position(|c| *c == self.brush.cell.fg);
         self.key_history.clear();
         if recovered {
             self.owns_recovery = true;
@@ -495,10 +523,12 @@ impl State {
         self.shader_preview_zoom = None;
         self.shader_preview_pan = (0., 0.);
         self.shader_preview_drag = None;
+        self.shader_drag = None;
         self.autosaved_revision = None;
         self.changed();
     }
     fn dismiss_gesture(&mut self) {
+        self.shader_drag = None;
         self.editor.cancel();
         self.gesture = None;
         self.floating = None;
@@ -535,6 +565,14 @@ impl State {
         }
     }
     fn perform(&mut self, action: Action) {
+        self.text_preview_drag = None;
+        if self.shader_drag.is_some() {
+            let cancel = action == Action::Cancel;
+            self.finish_shader_drag(!cancel);
+            if cancel {
+                return;
+            }
+        }
         self.shader_preview_drag = None;
         self.color_drag = None;
         match action {
@@ -657,6 +695,12 @@ impl State {
                         l.adjust(parameter, direction);
                     }
                 });
+            }
+            Action::ShaderSlider(parameter) => {
+                self.focus = self
+                    .hits
+                    .iter()
+                    .position(|h| h.action == Action::ShaderSlider(parameter));
             }
             Action::ShaderColor(color) => {
                 let i = self
@@ -818,6 +862,7 @@ impl State {
             Action::SaveAs => self.save(true),
             Action::Undo => {
                 self.dismiss_gesture();
+                let palette = self.selected_palette();
                 let from = self.editor.revision;
                 if self.editor.undo()
                     && let Some(k) = self
@@ -828,11 +873,13 @@ impl State {
                     (self.cursor, self.editor.selection) = k.before;
                 }
                 self.changed();
+                self.sync_palette_brush(palette);
                 self.clamp_cursor();
                 self.reveal_keyboard_cursor();
             }
             Action::Redo => {
                 self.dismiss_gesture();
+                let palette = self.selected_palette();
                 let from = self.editor.revision;
                 if self.editor.redo()
                     && let Some(k) = self
@@ -843,6 +890,7 @@ impl State {
                     (self.cursor, self.editor.selection) = k.after;
                 }
                 self.changed();
+                self.sync_palette_brush(palette);
                 self.clamp_cursor();
                 self.reveal_keyboard_cursor();
             }
@@ -896,9 +944,13 @@ impl State {
             Action::Palette(i) => {
                 if let Some(c) = self.editor.document.palette.get(i) {
                     self.brush.cell.fg = *c;
+                    self.foreground_palette = Some(i);
                 }
             }
-            Action::Foreground => self.color_modal(ColorTarget::Foreground),
+            Action::Foreground => self.color_modal(
+                self.selected_palette()
+                    .map_or(ColorTarget::Foreground, ColorTarget::Palette),
+            ),
             Action::Background => self.color_modal(ColorTarget::Background),
             Action::EditPalette(i) => self.color_modal(ColorTarget::Palette(i)),
             Action::ClearBackground => {
@@ -919,21 +971,84 @@ impl State {
             }
             Action::Zoom(up) => self.zoom(up, self.mouse),
             Action::CopyText => {
+                self.dismiss_gesture();
                 self.modal = Some(Modal::Text {
-                    content: self.editor.document.text(self.editor.selection),
+                    export: Box::new(TextExport::new(
+                        &self.editor.document,
+                        self.editor.selection,
+                    )),
                 });
+                self.text_preview_zoom = None;
+                self.text_preview_pan = (0., 0.);
                 self.focus = None;
+                self.status =
+                    "Export texte : fichier .txt ou copie adaptée à l’application de destination."
+                        .into();
+            }
+            Action::TextFormat(format) => {
+                if let Some(Modal::Text { export }) = &mut self.modal {
+                    export.set_format(format);
+                }
+                self.text_preview_zoom = None;
+                self.text_preview_pan = (0., 0.);
+            }
+            Action::TextPart(delta) => {
+                if let Some(Modal::Text { export }) = &mut self.modal {
+                    export.change_part(delta);
+                }
+                self.text_preview_zoom = None;
+                self.text_preview_pan = (0., 0.);
+            }
+            Action::TextZoom(up) => {
+                let r = self.text_preview_rect();
+                self.zoom_text_preview(
+                    if up { 1.25 } else { 0.8 },
+                    (r.x + r.w / 2., r.y + r.h / 2.),
+                );
+            }
+            Action::TextFit => {
+                self.text_preview_zoom = None;
+                self.text_preview_pan = (0., 0.);
+            }
+            Action::SaveText => {
+                if let Some(Modal::Text { export }) = &self.modal
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Texte UTF-8", &["txt"])
+                        .set_file_name("dessin.txt")
+                        .save_file()
+                {
+                    let path = with_extension(path, "txt");
+                    match export.save(&path) {
+                        Ok(()) => self.status = format!("Texte enregistré : {}", path.display()),
+                        Err(e) => self.status = format!("Export texte : {e:#}"),
+                    }
+                }
             }
             Action::CopyExport => {
-                let text = if let Some(Modal::Text { content }) = &self.modal {
-                    content.clone()
+                let (text, html) = if let Some(Modal::Text { export }) = &self.modal {
+                    let text = match export.payload() {
+                        Ok(t) => t.to_owned(),
+                        Err(e) => {
+                            self.status = e.into();
+                            return;
+                        }
+                    };
+                    (
+                        text,
+                        (export.format == TextFormat::Plain).then(|| export.html()),
+                    )
                 } else {
                     return;
                 };
-                match self.clip_set(&text) {
+                let result = if let Some(html) = html {
+                    self.clip_set_html(&html, &text)
+                } else {
+                    self.clip_set(&text)
+                };
+                match result {
                     Ok(()) => {
-                        self.status = "Texte copié dans le presse-papiers.".into();
-                        self.modal = None;
+                        self.status =
+                            "Texte copié. Les espaces et les lignes sont conservés.".into();
                     }
                     Err(e) => self.status = e,
                 }
@@ -1154,6 +1269,7 @@ impl State {
                 if self.editor.document.palette.len() < 32 {
                     let c = self.brush.cell.fg;
                     self.editor.edit(|d| d.palette.push(c));
+                    self.foreground_palette = Some(self.editor.document.palette.len() - 1);
                     self.changed();
                 } else {
                     self.status = "Palette : 32 couleurs maximum dans l’éditeur.".into();
@@ -1173,6 +1289,44 @@ impl State {
         self.editor.edit(|d| f(&mut d.shaders));
         self.shader_before = false;
         self.changed();
+    }
+    pub fn shader_slider_rect(&self, parameter: usize) -> ScreenRect {
+        ScreenRect::new(self.width - 252., 452. + parameter as f32 * 32., 100., 22.)
+    }
+    fn shader_drag_to(&mut self, x: f32) {
+        let Some(drag) = self.shader_drag else {
+            return;
+        };
+        if !x.is_finite() {
+            return;
+        }
+        let rect = self.shader_slider_rect(drag.parameter);
+        if let Some(layer) = self.editor.document.shaders.layers.get_mut(drag.layer) {
+            let spec = layer.parameter(drag.parameter);
+            let value = spec.min + ((x - rect.x) / rect.w).clamp(0., 1.) * (spec.max - spec.min);
+            layer.set_value(drag.parameter, value);
+            self.shader_before = false;
+            self.changed();
+        }
+    }
+    fn finish_shader_drag(&mut self, commit: bool) {
+        if self.shader_drag.take().is_some() {
+            if commit {
+                self.editor.commit();
+            } else {
+                self.editor.cancel();
+            }
+            self.changed();
+        }
+    }
+    pub fn set_shader_value(&mut self, parameter: usize, value: f32) {
+        self.finish_shader_drag(true);
+        let i = self.shader_selected;
+        self.shader_edit(|s| {
+            if let Some(layer) = s.layers.get_mut(i) {
+                layer.set_value(parameter, value);
+            }
+        });
     }
     fn color_modal(&mut self, target: ColorTarget) {
         self.dismiss_gesture();
@@ -1259,17 +1413,22 @@ impl State {
                             }
                         }
                         ColorTarget::Guide => self.guide_color = c,
-                        ColorTarget::Foreground => self.brush.cell.fg = c,
+                        ColorTarget::Foreground => {
+                            self.brush.cell.fg = c;
+                            self.foreground_palette = None;
+                        }
                         ColorTarget::Background => {
                             self.brush.cell.bg = Some(c);
                             self.brush.bg = true;
                         }
                         ColorTarget::Palette(i) => {
+                            let selected = self.selected_palette();
                             self.editor.edit(|d| {
                                 if let Some(slot) = d.palette.get_mut(i) {
                                     *slot = c;
                                 }
                             });
+                            self.sync_palette_brush(selected);
                             self.changed();
                         }
                         ColorTarget::Shader(layer, color) => self.shader_edit(|s| {
@@ -1326,6 +1485,17 @@ impl State {
             .as_mut()
             .unwrap()
             .set_text(text)
+            .map_err(|e| format!("Presse-papiers : {e}"))
+    }
+    fn clip_set_html(&mut self, html: &str, text: &str) -> Result<(), String> {
+        if self.clipboard.is_none() {
+            self.clipboard = Some(arboard::Clipboard::new().map_err(|e| e.to_string())?);
+        }
+        self.clipboard
+            .as_mut()
+            .unwrap()
+            .set_html(html, Some(text))
+            .or_else(|_| self.clipboard.as_mut().unwrap().set_text(text))
             .map_err(|e| format!("Presse-papiers : {e}"))
     }
     fn clip_get(&mut self) -> Result<String, String> {
@@ -1699,6 +1869,13 @@ impl State {
         }
     }
     pub fn move_cursor(&mut self, x: i32, y: i32, shift: bool) {
+        if matches!(self.modal, Some(Modal::Shaders))
+            && let Some(hit) = self.focus.and_then(|i| self.hits.get(i))
+            && let Action::ShaderSlider(parameter) = hit.action
+        {
+            self.activate(Action::ShaderAdjust(parameter, (x - y).signum()));
+            return;
+        }
         if matches!(self.modal, Some(Modal::Color { .. }))
             && let Some(hit) = self.focus.and_then(|i| self.hits.get(i))
             && let Action::ColorControl(control) = hit.action
@@ -1829,7 +2006,15 @@ impl State {
                     .iter()
                     .position(|h| matches!(h.action, Action::Glyph(_) | Action::MappedKey(_)))
             });
-        let palette=self.hits.iter().position(|h|matches!(h.action,Action::Palette(i) if self.editor.document.palette.get(i)==Some(&self.brush.cell.fg))).or_else(||self.hits.iter().position(|h|matches!(h.action,Action::Palette(_))));
+        let palette = self
+            .hits
+            .iter()
+            .position(|h| matches!(h.action,Action::Palette(i) if self.selected_palette()==Some(i)))
+            .or_else(|| {
+                self.hits
+                    .iter()
+                    .position(|h| matches!(h.action, Action::Palette(_)))
+            });
         let stops: Vec<usize> = self
             .hits
             .iter()
@@ -2016,6 +2201,7 @@ impl State {
     pub fn pick(&mut self, p: (i32, i32)) {
         if let Some(c) = self.editor.document.get(p.0, p.1) {
             self.brush.cell = c;
+            self.foreground_palette = None;
             self.choose_glyph(c.glyph);
         }
     }
@@ -2024,6 +2210,37 @@ impl State {
             return;
         }
         if self.modal.is_some() {
+            if matches!(self.modal, Some(Modal::Text { .. }))
+                && !right
+                && self.text_preview_rect().contains(self.mouse)
+            {
+                self.focus = None;
+                self.text_preview_drag = Some(PreviewDrag {
+                    mouse: self.mouse,
+                    pan: self.text_preview_pan,
+                });
+                return;
+            }
+            if matches!(self.modal, Some(Modal::Shaders))
+                && !right
+                && let Some((index, parameter)) = self.hits.iter().enumerate().find_map(|(i, h)| {
+                    if let Action::ShaderSlider(p) = h.action {
+                        h.rect.contains(self.mouse).then_some((i, p))
+                    } else {
+                        None
+                    }
+                })
+            {
+                self.finish_shader_drag(true);
+                self.editor.begin();
+                self.focus = Some(index);
+                self.shader_drag = Some(ShaderDrag {
+                    layer: self.shader_selected,
+                    parameter,
+                });
+                self.shader_drag_to(self.mouse.0);
+                return;
+            }
             if matches!(self.modal, Some(Modal::Color { .. })) && !right {
                 for control in [ColorControl::Plane, ColorControl::Hue] {
                     let rect = color_picker::rect(self.width, control);
@@ -2175,7 +2392,19 @@ impl State {
     }
     pub fn mouse_move(&mut self, p: (f32, f32)) {
         self.mouse = p;
+        if self.shader_drag.is_some() {
+            self.shader_drag_to(p.0);
+            return;
+        }
         if self.modal.is_some() {
+            if matches!(self.modal, Some(Modal::Text { .. }))
+                && let Some(drag) = self.text_preview_drag
+            {
+                self.text_preview_pan = (
+                    drag.pan.0 + p.0 - drag.mouse.0,
+                    drag.pan.1 + p.1 - drag.mouse.1,
+                );
+            }
             if matches!(self.modal, Some(Modal::Color { .. }))
                 && let Some(control) = self.color_drag
             {
@@ -2269,6 +2498,13 @@ impl State {
         }
     }
     pub fn mouse_up(&mut self) {
+        if self.text_preview_drag.take().is_some() {
+            return;
+        }
+        if self.shader_drag.is_some() {
+            self.finish_shader_drag(true);
+            return;
+        }
         if self.color_drag.take().is_some() {
             return;
         }
@@ -2304,6 +2540,8 @@ impl State {
         }
     }
     pub fn lost_focus(&mut self) {
+        self.text_preview_drag = None;
+        self.finish_shader_drag(false);
         self.color_drag = None;
         self.shader_preview_drag = None;
         self.editor.cancel();
@@ -2313,6 +2551,54 @@ impl State {
     }
     pub fn zoom(&mut self, up: bool, p: (f32, f32)) {
         self.zoom_by(if up { 1.25 } else { 0.8 }, p);
+    }
+    pub fn text_preview_rect(&self) -> ScreenRect {
+        ScreenRect::new(44., 240., self.width - 88., self.height - 420.)
+    }
+    pub fn text_preview_scale(&self) -> f32 {
+        let Some(Modal::Text { export }) = &self.modal else {
+            return 1.;
+        };
+        let r = self.text_preview_rect();
+        self.text_preview_zoom.unwrap_or(
+            ((r.w - 24.) / (export.width.max(1) as f32 * 8.))
+                .min((r.h - 24.) / (export.preview_height().max(1) as f32 * 16.))
+                .clamp(0.05, 2.),
+        )
+    }
+    pub fn text_preview_board(&self) -> ScreenRect {
+        let Some(Modal::Text { export }) = &self.modal else {
+            return self.text_preview_rect();
+        };
+        let r = self.text_preview_rect();
+        let scale = self.text_preview_scale();
+        let (w, h) = (
+            export.width as f32 * 8. * scale,
+            export.preview_height() as f32 * 16. * scale,
+        );
+        ScreenRect::new(
+            r.x + (r.w - w) / 2. + self.text_preview_pan.0,
+            r.y + (r.h - h) / 2. + self.text_preview_pan.1,
+            w,
+            h,
+        )
+    }
+    pub fn zoom_text_preview(&mut self, factor: f32, p: (f32, f32)) {
+        if !matches!(self.modal, Some(Modal::Text { .. })) || !factor.is_finite() || factor <= 0. {
+            return;
+        }
+        let old = self.text_preview_scale();
+        let board = self.text_preview_board();
+        let point = ((p.0 - board.x) / old, (p.1 - board.y) / old);
+        self.text_preview_zoom = Some((old * factor).clamp(0.05, 16.));
+        self.text_preview_pan = (0., 0.);
+        let board = self.text_preview_board();
+        let scale = self.text_preview_scale();
+        self.text_preview_pan = (
+            p.0 - point.0 * scale - board.x,
+            p.1 - point.1 * scale - board.y,
+        );
+        self.text_preview_drag = None;
     }
     pub fn shader_preview_rect(&self) -> ScreenRect {
         let extra_rows = shaders::KINDS.len().div_ceil(3).saturating_sub(3);
@@ -2632,6 +2918,20 @@ mod navigation_tests {
 }
 
 impl State {
+    /// Selection is an index, not an RGB match: duplicate swatches remain distinct.
+    pub fn selected_palette(&self) -> Option<usize> {
+        self.foreground_palette
+            .filter(|&i| self.editor.document.palette.get(i) == Some(&self.brush.cell.fg))
+    }
+    fn sync_palette_brush(&mut self, selected: Option<usize>) {
+        if let Some(i) = selected {
+            if let Some(c) = self.editor.document.palette.get(i) {
+                self.brush.cell.fg = *c;
+            } else {
+                self.foreground_palette = None;
+            }
+        }
+    }
     /// Keyboard editing has no mouse tool, even when one is remembered.
     /// Rendering, input routing and accessibility share this mode boundary.
     pub fn active_mouse_tool(&self) -> Option<Tool> {

@@ -3,6 +3,7 @@ use app::{ColorTarget, Modal};
 use color_picker::Control;
 use ditto::{
     core::*,
+    project,
     settings::Token,
     shaders::{Kind, Layer},
 };
@@ -14,6 +15,256 @@ fn state() -> State {
     s.cursor = (7, 5);
     s.frame();
     s
+}
+
+#[test]
+fn foreground_picker_edits_the_selected_swatch_and_history_keeps_brush_in_sync() {
+    let mut s = state();
+    s.editor.document.palette[4] = s.editor.document.palette[3];
+    click(&mut s, Action::Palette(4));
+    let original = s.editor.document.clone();
+    click(&mut s, Action::Foreground);
+    assert!(matches!(
+        s.modal,
+        Some(Modal::Color {
+            target: ColorTarget::Palette(4),
+            ..
+        })
+    ));
+    s.text_input("003080");
+    click(&mut s, Action::Cancel);
+    assert_eq!(s.editor.document, original);
+    click(&mut s, Action::Foreground);
+    s.text_input("003080");
+    click(&mut s, Action::Submit);
+    assert_eq!(s.brush.cell.fg, [0, 48, 128]);
+    assert_eq!(s.editor.document.palette[4], s.brush.cell.fg);
+    assert_eq!(s.editor.document.palette[3], original.palette[3]);
+    assert_eq!(s.editor.document.cells, original.cells);
+    s.activate(Action::Undo);
+    assert_eq!(s.editor.document, original);
+    assert_eq!(s.brush.cell.fg, original.palette[4]);
+    s.activate(Action::Redo);
+    assert_eq!(s.brush.cell.fg, [0, 48, 128]);
+    assert_eq!(s.selected_palette(), Some(4));
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("palette.ditto");
+    project::save(&path, &s.editor.document).unwrap();
+    assert_eq!(project::load(&path).unwrap().palette[4], [0, 48, 128]);
+}
+
+#[test]
+fn palette_editing_does_not_overwrite_other_swatches_or_sampled_colours() {
+    let mut s = state();
+    click(&mut s, Action::Palette(3));
+    let fg = s.brush.cell.fg;
+    s.activate(Action::EditPalette(7));
+    s.text_input("112233");
+    s.activate(Action::Submit);
+    assert_eq!(s.brush.cell.fg, fg);
+    s.pick((0, 0));
+    assert!(s.selected_palette().is_none());
+    let palette = s.editor.document.palette.clone();
+    s.activate(Action::Foreground);
+    s.text_input("442255");
+    s.activate(Action::Submit);
+    assert_eq!(s.editor.document.palette, palette);
+    assert_eq!(s.brush.cell.fg, [68, 34, 85]);
+    s.activate(Action::Undo);
+    assert_eq!(s.brush.cell.fg, [68, 34, 85]);
+    s.activate(Action::AddColor);
+    assert_eq!(
+        s.selected_palette(),
+        Some(s.editor.document.palette.len() - 1)
+    );
+}
+
+#[test]
+fn every_shader_slider_previews_live_clamps_and_commits_one_undo() {
+    for kind in ditto::shaders::KINDS {
+        for parameter in 0..4 {
+            let mut s = state();
+            s.editor.document.shaders.layers.push(Layer::new(kind));
+            s.activate(Action::Shaders);
+            s.frame();
+            let original = s.editor.document.clone();
+            let spec = original.shaders.layers[0].parameter(parameter);
+            let rect = s
+                .hits
+                .iter()
+                .find(|h| h.action == Action::ShaderSlider(parameter))
+                .unwrap()
+                .rect;
+            s.mouse_move((rect.x + rect.w * 0.37, rect.y + 11.));
+            s.mouse_down(false);
+            assert!(s.editor.pending());
+            assert_eq!(s.editor.revision, 0);
+            let mid = s.editor.document.shaders.layers[0].value(parameter);
+            assert!((spec.min..=spec.max).contains(&mid));
+            if spec.discrete {
+                assert_eq!(mid.fract(), 0.);
+            }
+            s.mouse_move((rect.x - 200., rect.y - 200.));
+            assert_eq!(
+                s.editor.document.shaders.layers[0].value(parameter),
+                spec.min
+            );
+            s.mouse_move((rect.x + rect.w + 200., rect.y + 200.));
+            assert_eq!(
+                s.editor.document.shaders.layers[0].value(parameter),
+                spec.max
+            );
+            s.mouse_up();
+            assert!(!s.editor.pending());
+            if original.shaders.layers[0].value(parameter) != spec.max {
+                assert_eq!(s.editor.revision, 1);
+                s.activate(Action::Undo);
+                assert_eq!(s.editor.document, original);
+                assert!(!s.editor.undo());
+                s.activate(Action::Redo);
+                assert_eq!(
+                    s.editor.document.shaders.layers[0].value(parameter),
+                    spec.max
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn shader_slider_cancellation_keyboard_and_layer_changes_do_not_leak_transactions() {
+    let mut s = state();
+    s.activate(Action::ShaderAdd(Kind::Chromatic));
+    s.activate(Action::Shaders);
+    s.frame();
+    let original = s.editor.document.shaders.clone();
+    let r = s.shader_slider_rect(1);
+    for lose_focus in [false, true] {
+        s.mouse_move((r.x + 85., r.y + 11.));
+        s.mouse_down(false);
+        assert_ne!(s.editor.document.shaders, original);
+        if lose_focus {
+            s.lost_focus();
+        } else {
+            key(&mut s, NamedKey::Escape);
+        }
+        assert_eq!(s.editor.document.shaders, original);
+        assert!(matches!(s.modal, Some(Modal::Shaders)));
+        s.mouse_move((r.x, r.y));
+        s.mouse_up();
+        assert_eq!(s.editor.document.shaders, original);
+    }
+    s.activate(Action::ShaderSlider(1));
+    key(&mut s, NamedKey::ArrowRight);
+    assert_eq!(s.editor.document.shaders.layers[0].params[0], 2.5);
+    let before = s.editor.document.clone();
+    s.set_shader_value(1, f32::NAN);
+    assert_eq!(s.editor.document, before);
+    s.mouse_move((r.x + 50., r.y + 11.));
+    s.mouse_down(false);
+    s.activate(Action::ShaderAdd(Kind::Glow));
+    assert!(!s.editor.pending());
+    let first = s.editor.document.shaders.layers[0].clone();
+    s.mouse_move((r.x + 90., r.y));
+    s.mouse_up();
+    assert_eq!(s.editor.document.shaders.layers[0], first);
+    s.activate(Action::Undo);
+    assert_eq!(s.editor.document.shaders.layers.len(), 1);
+    s.activate(Action::Undo);
+    assert_eq!(s.editor.document, before);
+}
+
+#[test]
+fn text_export_formats_preview_and_file_leave_the_document_unchanged() {
+    let mut s = state();
+    s.activate(Action::ToggleEditMode);
+    s.editor.selection = Some(Rect {
+        x: 2,
+        y: 3,
+        w: 12,
+        h: 4,
+    });
+    let before = (s.editor.document.clone(), s.cursor, s.pan, s.cell_size);
+    s.activate(Action::CopyText);
+    s.frame();
+    assert!(s.hits.iter().any(|h| h.action == Action::SaveText));
+    let r = s.text_preview_rect();
+    s.mouse_move((r.x + r.w / 2., r.y + r.h / 2.));
+    route_scroll(&mut s, MouseScrollDelta::LineDelta(0., 2.), 1.);
+    s.mouse_down(false);
+    s.mouse_move((r.x + 50., r.y + 40.));
+    s.mouse_up();
+    assert_ne!(s.text_preview_pan, (0., 0.));
+    click(
+        &mut s,
+        Action::TextFormat(ditto::text_export::Format::Discord),
+    );
+    if let Some(Modal::Text { export }) = &s.modal {
+        assert_eq!((export.width, export.height), (12, 4));
+        assert!(export.payload().unwrap().starts_with("```\n"));
+    } else {
+        panic!();
+    }
+    s.activate(Action::TextFit);
+    assert_eq!(s.text_preview_pan, (0., 0.));
+    assert_eq!(
+        (s.editor.document.clone(), s.cursor, s.pan, s.cell_size),
+        before
+    );
+    key(&mut s, NamedKey::Escape);
+    assert!(s.modal.is_none());
+    assert!(s.keyboard_active() && caret_is_drawn(&mut s));
+}
+
+#[test]
+fn shader_sliders_expose_accessible_values_and_new_panels_fit_minimum_size() {
+    use accesskit::{Action as A, ActionData, ActionRequest, NodeId, Role, TreeId};
+    let mut s = state();
+    s.layout(1120., 720.);
+    s.activate(Action::ShaderAdd(Kind::Chromatic));
+    s.activate(Action::Shaders);
+    s.frame();
+    let index = s
+        .hits
+        .iter()
+        .position(|h| h.action == Action::ShaderSlider(1))
+        .unwrap();
+    let target = NodeId(index as u64 + 10);
+    let tree = accessibility::tree(&s, 1.);
+    let node = &tree.nodes.iter().find(|(id, _)| *id == target).unwrap().1;
+    assert_eq!(node.role(), Role::Slider);
+    assert_eq!(node.numeric_value(), Some(2.));
+    accessibility::action(
+        &mut s,
+        ActionRequest {
+            action: A::SetValue,
+            target_tree: TreeId::ROOT,
+            target_node: target,
+            data: Some(ActionData::NumericValue(3.125)),
+        },
+    );
+    assert_eq!(s.editor.document.shaders.layers[0].params[0], 3.125);
+    s.activate(Action::Undo);
+    assert_eq!(s.editor.document.shaders.layers[0].params[0], 2.);
+    for text in [false, true] {
+        if text {
+            s.activate(Action::CopyText);
+        }
+        s.frame();
+        for (i, a) in s.hits.iter().enumerate() {
+            assert!(a.rect.x >= 0. && a.rect.x + a.rect.w <= s.width);
+            assert!(a.rect.y >= 0. && a.rect.y + a.rect.h <= s.height);
+            for b in &s.hits[i + 1..] {
+                let r = a.rect.intersect(b.rect);
+                assert!(
+                    r.w <= 0. || r.h <= 0.,
+                    "overlap: {:?} {:?}",
+                    a.action,
+                    b.action
+                );
+            }
+        }
+    }
 }
 fn key(s: &mut State, key: NamedKey) {
     route_key(s, ModifiersState::empty(), Key::Named(key), None);

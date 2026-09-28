@@ -266,7 +266,7 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
             14.,
         );
         u.d.rect(r, *c, 1.);
-        if *c == s.brush.cell.fg || s.focus == Some(u.hits.len()) {
+        if s.selected_palette() == Some(i) || s.focus == Some(u.hits.len()) {
             u.d.border(r, u.theme.text);
         }
         u.hits.push(Hit {
@@ -660,6 +660,10 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
             shader_window(&mut u, s);
             return (u.d, u.hits);
         }
+        if let Modal::Text { export } = modal {
+            text_export_window(&mut u, s, export);
+            return (u.d, u.hits);
+        }
         u.hits.clear();
         u.d.rect(
             Rect::new(0., 76., s.width, s.height - 116.),
@@ -854,45 +858,7 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
                 u.button(x, y + 332., "[Annuler]", Action::Cancel, false);
                 u.button(x + 328., y + 332., "[Exporter]", Action::Submit, true);
             }
-            Modal::Text { content } => {
-                u.text(x, y, "TEXTE À COPIER / UTF-8", u.theme.accent);
-                u.text(
-                    x,
-                    y + 32.,
-                    if s.editor.selection.is_some() {
-                        "Portée : sélection · sans couleurs"
-                    } else {
-                        "Portée : grille entière · sans couleurs"
-                    },
-                    u.theme.muted,
-                );
-                let preview = Rect::new(x, y + 64., 544., 240.);
-                u.d.rect(preview, u.theme.canvas, 1.);
-                u.d.clip = preview;
-                for (i, line) in content.lines().take(15).enumerate() {
-                    u.text(
-                        x + 8.,
-                        y + 68. + i as f32 * 16.,
-                        &truncate(line, 65),
-                        u.theme.text,
-                    );
-                }
-                u.d.clip = Rect::new(0., 0., s.width, s.height);
-                u.text(
-                    x,
-                    y + 320.,
-                    "L’aperçu est limité ; la copie contient toute la portée.",
-                    u.theme.muted,
-                );
-                u.button(x, y + 368., "[Retour]", Action::Cancel, false);
-                u.button(
-                    x + 280.,
-                    y + 368.,
-                    "[Copier le texte]",
-                    Action::CopyExport,
-                    true,
-                );
-            }
+            Modal::Text { .. } => unreachable!(),
             Modal::Help => {
                 u.text(
                     x,
@@ -1152,6 +1118,157 @@ fn guides_window(u: &mut Ui, s: &State, x: f32, y: f32) {
     u.button(x, y + 400., "[Tout effacer]", Action::GuideClear, false);
     u.button(x + 376., y + 400., "[Fermer]", Action::Cancel, true);
 }
+fn text_export_window(u: &mut Ui, s: &State, export: &ditto::text_export::Export) {
+    use ditto::text_export::Format;
+    u.hits.clear();
+    u.d.rect(
+        Rect::new(0., 76., s.width, s.height - 116.),
+        u.theme.background,
+        0.98,
+    );
+    let window = Rect::new(24., 80., s.width - 48., s.height - 128.);
+    u.d.rect(window, u.theme.panel, 1.);
+    u.frame(window, "EXPORT TEXTE / UTF-8");
+    u.text(
+        44.,
+        108.,
+        "PARTAGER LE DESSIN EN CARACTÈRES",
+        u.theme.accent,
+    );
+    u.text(
+        44.,
+        140.,
+        &format!(
+            "{} · {} colonnes × {} lignes · espaces et lignes vides conservés",
+            if export.selection {
+                "Sélection"
+            } else {
+                "Grille entière"
+            },
+            export.width,
+            export.height
+        ),
+        u.theme.muted,
+    );
+    for (i, format) in Format::ALL.into_iter().enumerate() {
+        u.button(
+            44. + i as f32 * 156.,
+            172.,
+            &format!("[{}]", format.label()),
+            Action::TextFormat(format),
+            export.format == format,
+        );
+    }
+    if let Ok(parts) = &export.parts
+        && parts.len() > 1
+    {
+        u.button(s.width - 260., 172., "[<]", Action::TextPart(-1), false);
+        u.text(
+            s.width - 216.,
+            176.,
+            &format!("Bloc {}/{}", export.part + 1, parts.len()),
+            u.theme.accent,
+        );
+        u.button(s.width - 92., 172., "[>]", Action::TextPart(1), false);
+    }
+    let hint = match &export.parts {
+        Err(e) => e.as_str(),
+        Ok(_) => match export.format {
+            Format::Plain => {
+                "Texte exact + version monospace pour les apps compatibles. Sinon, choisir une police monospace."
+            }
+            Format::Markdown => {
+                "Bloc de code : protège les espaces et les symboles du formatage Markdown."
+            }
+            Format::Discord => {
+                "Aperçu du bloc choisi · 2 000 caractères max. Copier les blocs dans l’ordre. Le .txt contient tout."
+            }
+        },
+    };
+    u.text(44., 208., hint, u.theme.muted);
+    let preview = s.text_preview_rect();
+    u.d.rect(preview, u.theme.canvas, 1.);
+    u.d.clip = preview;
+    let board = s.text_preview_board();
+    let scale = s.text_preview_scale();
+    for (y, line) in export.preview().split('\n').enumerate() {
+        let top = board.y + y as f32 * 16. * scale;
+        if top + 16. * scale < preview.y || top >= preview.y + preview.h {
+            continue;
+        }
+        for (x, ch) in line.chars().enumerate() {
+            let left = board.x + x as f32 * 8. * scale;
+            if left + 8. * scale < preview.x || left >= preview.x + preview.w {
+                continue;
+            }
+            if let Some(glyph) = font::glyph(ch) {
+                u.d.glyph(
+                    glyph,
+                    Rect::new(left, top, 8. * scale, 16. * scale),
+                    u.theme.text,
+                    1.,
+                );
+            }
+        }
+    }
+    u.d.clip = Rect::new(0., 0., s.width, s.height);
+    u.d.border(preview, u.theme.border);
+    let count = export.payload().map_or(0, |s| s.encode_utf16().count());
+    u.text(
+        44.,
+        s.height - 158.,
+        &format!(
+            "{} octets UTF-8 · {} caractères à copier · couleurs et effets : utiliser l’export PNG",
+            export.content.len(),
+            count
+        ),
+        u.theme.muted,
+    );
+    u.button(44., s.height - 134., "[-]", Action::TextZoom(false), false);
+    u.text(
+        88.,
+        s.height - 130.,
+        &format!("{:.0}%", scale * 100.),
+        u.theme.text,
+    );
+    u.button(148., s.height - 134., "[+]", Action::TextZoom(true), false);
+    u.button(196., s.height - 134., "[Ajuster]", Action::TextFit, false);
+    u.text(
+        312.,
+        s.height - 130.,
+        "Molette : zoom · glisser : déplacer",
+        u.theme.muted,
+    );
+    u.button(44., s.height - 100., "[Retour]", Action::Cancel, false);
+    u.button(
+        s.width - 480.,
+        s.height - 100.,
+        "[Enregistrer .txt]",
+        Action::SaveText,
+        false,
+    );
+    if export.payload().is_ok() {
+        u.button(
+            s.width - 264.,
+            s.height - 100.,
+            if export.format == Format::Discord {
+                "[Copier ce bloc]"
+            } else {
+                "[Copier]"
+            },
+            Action::CopyExport,
+            true,
+        );
+    } else {
+        u.text(
+            s.width - 264.,
+            s.height - 97.,
+            "Utiliser le fichier .txt",
+            u.theme.muted,
+        );
+    }
+}
+
 fn shader_window(u: &mut Ui, s: &State) {
     u.hits.clear();
     u.d.rect(
@@ -1374,7 +1491,8 @@ fn shader_window(u: &mut Ui, s: &State) {
             );
             u.button(right + 192., y, "[-]", Action::ShaderAdjust(i, -1), false);
             u.hits.last_mut().unwrap().label = format!("Diminuer {} : {:.2}", spec.name, value);
-            let bar = Rect::new(right + 232., y + 8., 100., 6.);
+            let hit = s.shader_slider_rect(i);
+            let bar = Rect::new(hit.x, hit.y + 8., hit.w, 6.);
             u.d.rect(bar, u.theme.border, 1.);
             u.d.rect(
                 Rect::new(
@@ -1386,6 +1504,23 @@ fn shader_window(u: &mut Ui, s: &State) {
                 u.theme.accent,
                 1.,
             );
+            let t = ((value - spec.min) / (spec.max - spec.min)).clamp(0., 1.);
+            u.d.rect(
+                Rect::new(bar.x + (bar.w - 4.) * t, hit.y + 3., 4., 16.),
+                u.theme.accent,
+                1.,
+            );
+            if s.focus == Some(u.hits.len()) {
+                u.d.border(hit, u.theme.focus);
+            }
+            u.hits.push(Hit {
+                rect: hit,
+                action: Action::ShaderSlider(i),
+                label: format!(
+                    "{} : {:.2}. Glisser ou utiliser les flèches.",
+                    spec.name, value
+                ),
+            });
             u.button(right + 344., y, "[+]", Action::ShaderAdjust(i, 1), false);
             u.hits.last_mut().unwrap().label = format!("Augmenter {} : {:.2}", spec.name, value);
         }

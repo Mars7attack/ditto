@@ -1,5 +1,32 @@
 # Ditto — validation du 28 septembre 2026
 
+## Palette, chromatique, sliders et export texte — 28 septembre 2026
+
+Branche `feat/palette-shaders-text-export`, base `918e582` ; version 0.1.0 / X0005
+et format projet V6 conservés.
+
+- Palette : sélection par index et lien explicite avec la brosse FG. Validation
+  du picker, undo/redo et fichier projet restent cohérents, y compris avec des
+  doublons de couleur. Une couleur prélevée reste indépendante de la palette.
+- Chromatique : régression GPU observée avant correction (alpha 192 d’un fantôme
+  noir correspondant à un canal absent). Interpolation linéaire prémultipliée,
+  couverture par canal et décalages fractionnaires corrigent ce cas. Le modèle,
+  les sources mathématiques et le compromis RGBA sont dans `docs/CHROMATIC.md`.
+- Sliders : aperçu live, bornes, paramètres discrets, annulation du geste,
+  un seul undo au relâchement, clavier et AccessKit. Matrice des 44 réglages.
+- Texte : fichier exact par écriture atomique, payload texte/HTML, Markdown et
+  Discord, navigation et aperçu du bloc courant. Aucun glyphe ni espace remplacé
+  pour contourner une limite de messagerie. Cas non représentables signalés.
+- `scripts/check.sh --native` : formatage, Clippy strict, 146 tests dont quatre
+  GPU, parcours éditeur/shaders et 30 fixtures de grille passent sur Apple M2 / Metal.
+  Huit nouvelles scènes natives, captures chromatiques et export texte inspectés.
+- Preuves : `validation/runtime/palette-shaders-text/`, régression initiale
+  `chromatic-before.log` ; parcours complet `validation/runtime/native/run-e6kih0v_/`.
+  Les fichiers de partage et les PNG chromatiques sont conservés dans `editor/`.
+- Le transport vers les apps tierces n’a pas été testé en envoyant des messages.
+  Les payloads, la découpe, le fichier et le rendu natif sont automatisés ; les
+  variations de polices des destinataires restent documentées dans `docs/TEXT-EXPORT.md`.
+
 ## Indépendance clavier/souris et curseur — 28 septembre 2026
 
 Branche `fix/keyboard-cursor-history`, base `e84ba77` (grille et picker inclus).

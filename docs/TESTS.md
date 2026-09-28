@@ -1,7 +1,7 @@
 # Validation automatisée
 
 `scripts/check.sh` exécute formatage, Clippy strict et tous les tests sans fenêtre.
-`scripts/check.sh --native` inclut les deux tests GPU, construit le binaire et
+`scripts/check.sh --native` inclut les tests GPU, construit le binaire et
 exécute deux parcours avec une vraie fenêtre winit/wgpu. Sur Linux sans bureau :
 `xvfb-run -a -s '-screen 0 1920x1080x24' scripts/check.sh --native` avec Mesa Vulkan et `libxkbcommon-x11-0` (clavier X11 chargé dynamiquement).
 Le workflow CI exécute la suite sans fenêtre sur macOS et Ubuntu et la suite
@@ -34,6 +34,10 @@ le job natif.
 | Curseur | Chacun des 11 outils souris, 8 cycles par outil, couleur de guide validée/annulée, fermeture de chaque panneau, focus, IME, sélection, trois thèmes, guides devant/derrière, shaders, zoom, pan, bords et redimensionnement 1×1 | `regression_tests`, captures natives `cursor-*` |
 | Indépendance clavier/souris | Même séquence de saisie, sélection, suppression et historique pour les 11 outils mémorisés ; Échap préserve l’outil souris et efface la sélection clavier ; IME avec focus UI ; undo/redo après navigation hors vue ; quatre côtés du cadre visibles au bord du viewport | `regression_tests`, six captures natives `cursor-guide-stroke-keyboard` à `cursor-text-tool-keyboard-escape` |
 | Couleurs | Tous les types de cible, RGB↔HSV sur un cube de 4096 couleurs et les 256 gris, noir/blanc, conservation de teinte, drags hors limites, perte de focus, invalidité HEX, clavier, annulation, palette/shader undo, layout minimum, arbre d’accessibilité | `color_picker`, `regression_tests`, captures natives `picker-*` |
+| Palette liée à la brosse | Picker FG, swatches dupliqués, modification d’une autre case, pipette indépendante, annulation/rétablissement et persistance | `regression_tests`, captures natives `palette-*` |
+| Sliders des effets | 44 réglages, aperçu pendant le geste, limites, valeurs discrètes, un undo par glissement, Échap/perte de focus, changement de couche, clavier, accessibilité et disposition minimum | `regression_tests`, captures `chromatic-slider-*` |
+| Chromatique | Primaires sombres sans silhouettes noires, alpha partiel et nul, interpolation linéaire, sous-pixel, neutralité, échelles 1/2/4 et angles | Deux tests GPU dédiés, fixtures PNG/captures natives |
+| Partage texte | UTF-8 exact, sélection, espaces/lignes vides, HTML échappé, clôtures Markdown, découpe Discord aux lignes et budget UTF-16, erreur explicite, aperçu du bloc, zoom/pan et fichier .txt | `text_export`, `regression_tests`, captures `text-export-*` et fichiers natifs |
 | Guides | Sous-cellule, coupure à la sortie du canevas, gomme balayée, visibilité, ordre, opacité/épaisseur limites, couleur future vs recoloration globale, suppression, projet et export sans aides | `guides_and_settings`, tests d’application, composition native vérifiée en pixels |
 | Recoloration | FG seul, espaces et braille vide ignorés, masque indépendant, sélection, rayon borné, interpolation, sortie/rentrée, undo du geste | `guides_and_settings`, tests d’application, parcours natif |
 | Référence | Import réel PNG, transformations, verrouillage, fit/cover, opacité bornée, suppression/undo, portabilité, exclusion des exports | `core_and_project`, `sfmono`, `regression_tests`, composition native |

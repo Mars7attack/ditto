@@ -24,6 +24,29 @@ fn straight(c: vec4<f32>) -> vec4<f32> {
     return vec4(clamp(c.rgb / c.a, vec3(0.), vec3(1.)), clamp(c.a, 0., 1.));
 }
 fn luma(c: vec3<f32>) -> f32 { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+fn decode_srgb(c: vec3<f32>) -> vec3<f32> {
+    return select(pow((c + vec3(0.055)) / 1.055, vec3(2.4)), c / 12.92, c <= vec3(0.04045));
+}
+fn encode_srgb(c: vec3<f32>) -> vec3<f32> {
+    let v = max(c, vec3(0.));
+    return select(1.055 * pow(v, vec3(1. / 2.4)) - vec3(0.055), v * 12.92, v <= vec3(0.0031308));
+}
+fn chromatic_texel(pos: vec2<i32>, channel: u32) -> vec2<f32> {
+    let c = read(pos);
+    let linear = decode_srgb(c.rgb);
+    let peak = max(max(linear.r, linear.g), linear.b);
+    // RGBA cannot store three independent spectral opacities. Reconstruct an
+    // envelope from each channel's relative contribution instead of copying
+    // opacity from absent channels (which creates black ghosts on pure blue).
+    return vec2(linear[channel] * c.a, c.a * linear[channel] / max(peak, 0.000001));
+}
+fn chromatic_sample(pos: vec2<f32>, channel: u32) -> vec2<f32> {
+    let pixel = vec2<i32>(floor(pos));
+    let f = fract(pos);
+    return mix(
+        mix(chromatic_texel(pixel, channel), chromatic_texel(pixel + vec2(1, 0), channel), f.x),
+        mix(chromatic_texel(pixel + vec2(0, 1), channel), chromatic_texel(pixel + vec2(1, 1), channel), f.x), f.y);
+}
 fn hue_rotate(c: vec3<f32>, angle: f32) -> vec3<f32> {
     // YIQ rotation preserves luminance and makes the 0-degree setting neutral.
     let y = dot(c, vec3(0.299, 0.587, 0.114));
@@ -109,11 +132,18 @@ fn hue_rotate(c: vec3<f32>, angle: f32) -> vec3<f32> {
             result = vec4(c.rgb * (0.2 + 0.8 * mask), c.a);
         }
         case 6u: {
+            if p.x == 0. { return c; }
             let offset = vec2(cos(radians(p.y)), sin(radians(p.y))) * p.x * scale;
-            let red = premul(read(pos + vec2<i32>(round(offset * (0.5 + p.z)))));
-            let blue = premul(read(pos - vec2<i32>(round(offset * (1.5 - p.z)))));
-            let alpha = max(c.a, max(red.a, blue.a));
-            result = straight(vec4(red.r, c.g * c.a, blue.b, alpha));
+            let red = chromatic_sample(vec2<f32>(pos) + offset * (0.5 + p.z), 0u);
+            let green = chromatic_texel(pos, 1u);
+            let blue = chromatic_sample(vec2<f32>(pos) - offset * (1.5 - p.z), 2u);
+            // Opaque black is still artwork, anchored at its original location.
+            let black = select(0., c.a, all(c.rgb == vec3(0.)));
+            let alpha = max(black, max(red.y, max(green.y, blue.y)));
+            let light = vec3(red.x, green.x, blue.x);
+            let combined = mix(vec4(decode_srgb(c.rgb) * c.a, c.a), vec4(light, alpha), settings.control.y);
+            if combined.a < 0.00001 { return vec4(0.); }
+            return vec4(clamp(encode_srgb(combined.rgb / combined.a), vec3(0.), vec3(1.)), combined.a);
         }
         case 7u: {
             // Integer noise is stable across GPUs and independent of output resolution.

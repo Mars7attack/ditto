@@ -42,6 +42,7 @@ pub struct Parameter {
     pub max: f32,
     pub step: f32,
     pub initial: f32,
+    pub discrete: bool,
 }
 const fn p(name: &'static str, min: f32, max: f32, step: f32, initial: f32) -> Parameter {
     Parameter {
@@ -50,6 +51,13 @@ const fn p(name: &'static str, min: f32, max: f32, step: f32, initial: f32) -> P
         max,
         step,
         initial,
+        discrete: false,
+    }
+}
+impl Parameter {
+    const fn discrete(mut self) -> Self {
+        self.discrete = true;
+        self
     }
 }
 impl Kind {
@@ -76,7 +84,7 @@ impl Kind {
             Self::Duotone => "Deux encres réparties selon la luminosité.",
             Self::Scanlines => "Les lignes d’un écran cathodique.",
             Self::Pattern => "Trame : 0 points / 1 lignes / 2 damier.",
-            Self::Chromatic => "Décalage des canaux rouge et bleu.",
+            Self::Chromatic => "Dispersion RGB douce, sans silhouettes noires.",
             Self::Grain => "Une texture fixe, reproductible à l’export.",
             Self::Vignette => "Assombrit progressivement les bords.",
             Self::Blur => "Flou global, horizontal et vertical réglables.",
@@ -103,7 +111,7 @@ impl Kind {
             Self::Duotone => [
                 p("Contraste", 0.2, 3., 0.1, 1.),
                 p("Point noir", 0., 0.8, 0.05, 0.),
-                p("Inversion", 0., 1., 1., 0.),
+                p("Inversion", 0., 1., 1., 0.).discrete(),
             ],
             Self::Scanlines => [
                 p("Espacement", 2., 32., 1., 4.),
@@ -113,7 +121,7 @@ impl Kind {
             Self::Pattern => [
                 p("Espacement", 2., 32., 1., 6.),
                 p("Densité", 0.1, 0.9, 0.05, 0.45),
-                p("Forme 0/1/2", 0., 2., 1., 0.),
+                p("Forme 0/1/2", 0., 2., 1., 0.).discrete(),
             ],
             Self::Chromatic => [
                 p("Décalage / px", 0., 16., 0.5, 2.),
@@ -123,7 +131,7 @@ impl Kind {
             Self::Grain => [
                 p("Taille / px", 1., 8., 1., 1.),
                 p("Intensité", 0., 1., 0.05, 0.25),
-                p("Graine", 0., 100., 1., 17.),
+                p("Graine", 0., 100., 1., 17.).discrete(),
             ],
             Self::Vignette => [
                 p("Rayon", 0.1, 1., 0.05, 0.65),
@@ -182,7 +190,14 @@ impl Layer {
             return;
         }
         let spec = self.parameter(index);
-        let value = (self.value(index) + spec.step * direction as f32).clamp(spec.min, spec.max);
+        self.set_value(index, self.value(index) + spec.step * direction as f32);
+    }
+    pub fn set_value(&mut self, index: usize, value: f32) {
+        if index > 3 || !value.is_finite() {
+            return;
+        }
+        let spec = self.parameter(index);
+        let value = if spec.discrete { value.round() } else { value }.clamp(spec.min, spec.max);
         if index == 0 {
             self.mix = value;
         } else {

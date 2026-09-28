@@ -4,6 +4,7 @@ pub mod font;
 pub mod project;
 pub mod shader_gpu;
 pub mod shaders;
+pub mod text_export;
 pub mod typeface;
 
 pub mod guides;

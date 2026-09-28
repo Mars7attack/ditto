@@ -2,6 +2,14 @@
 
 ## À paraître
 
+- Palette : le picker FG modifie la case sélectionnée et la brosse ensemble,
+  avec annulation/rétablissement synchronisés et sélection distincte des doublons.
+- Chromatique : interpolation en lumière linéaire, décalages sous-pixel et
+  couverture par canal, sans silhouettes noires sur les primaires sombres.
+- Réglages des onze effets : sliders glissables, aperçu immédiat, un undo par
+  glissement, clavier et valeurs accessibles.
+- Export texte repensé : fichier .txt UTF-8 exact, aperçu zoomable, copie
+  monospace/HTML avec repli texte, Markdown et blocs Discord sans lignes coupées.
 - Mode clavier indépendant de l’outil souris mémorisé, y compris Guides/Gomme
   guides et Texte. Curseur maintenu dans la vue après annulation/rétablissement
   et affiché au-dessus du contour du canevas, même au bord de la vue.

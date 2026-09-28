@@ -973,6 +973,9 @@ fn route_scroll(state: &mut State, delta: MouseScrollDelta, scale_factor: f64) {
     if amount.is_finite() {
         let factor = amount.clamp(-10., 10.).exp() as f32;
         match state.modal {
+            Some(app::Modal::Text { .. }) if state.text_preview_rect().contains(state.mouse) => {
+                state.zoom_text_preview(factor, state.mouse)
+            }
             Some(app::Modal::Shaders) if state.shader_preview_rect().contains(state.mouse) => {
                 state.zoom_shader_preview(factor, state.mouse)
             }
@@ -993,6 +996,22 @@ fn route_key(state: &mut State, modifiers: ModifiersState, key: Key, text: Optio
     }
     if !state.ime.is_empty() {
         return;
+    }
+    if matches!(state.modal, Some(app::Modal::Text { .. }))
+        && !command
+        && !modifiers.alt_key()
+        && let Key::Character(c) = &key
+    {
+        let action = match c.as_str() {
+            "+" | "=" => Some(Action::TextZoom(true)),
+            "-" => Some(Action::TextZoom(false)),
+            "0" => Some(Action::TextFit),
+            _ => None,
+        };
+        if let Some(action) = action {
+            state.activate(action);
+            return;
+        }
     }
     if matches!(state.modal, Some(app::Modal::Shaders)) {
         if !modifiers.alt_key()

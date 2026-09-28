@@ -13,6 +13,102 @@ fn stack(kind: Kind) -> Stack {
 }
 
 #[test]
+#[ignore = "Requires a real wgpu adapter; run explicitly during native shader validation"]
+fn chromatic_preserves_dark_primaries_without_black_ghosts_and_moves_subpixels() {
+    let mut recipe = stack(Kind::Chromatic);
+    recipe.layers[0].params = [4., 0., 0.5];
+    for (channel, color, shift) in [(0, [48, 0, 0], -4), (1, [0, 48, 0], 0), (2, [0, 0, 48], 4)] {
+        let mut source = RgbaImage::from_pixel(64, 16, Rgba([255, 80, 10, 0]));
+        for y in 0..16 {
+            source.put_pixel(32, y, Rgba([color[0], color[1], color[2], 192]));
+        }
+        let out = shader_gpu::render(&source, &recipe, 1.).unwrap();
+        for x in 0..64 {
+            let p = out.get_pixel(x, 8).0;
+            if x as i32 == 32 + shift {
+                assert!(
+                    p[channel].abs_diff(48) <= 1 && p[3].abs_diff(192) <= 1,
+                    "{channel}: {p:?}"
+                );
+            } else {
+                assert_eq!(
+                    p[3], 0,
+                    "absent channel produced an opaque ghost at {x}: {p:?}"
+                );
+            }
+        }
+    }
+    let mut source = RgbaImage::new(64, 16);
+    for y in 0..16 {
+        source.put_pixel(32, y, Rgba([0, 0, 48, 255]));
+    }
+    recipe.layers[0].params[0] = 0.25;
+    let out = shader_gpu::render(&source, &recipe, 1.).unwrap();
+    assert!(out.get_pixel(32, 8)[3].abs_diff(191) <= 1);
+    assert!(out.get_pixel(33, 8)[3].abs_diff(64) <= 1);
+    assert_eq!(out.get_pixel(33, 8)[2], 48);
+    recipe.layers[0].params[0] = 0.;
+    assert_eq!(shader_gpu::render(&source, &recipe, 1.).unwrap(), source);
+}
+
+#[test]
+#[ignore = "Requires a real wgpu adapter; run explicitly during native shader validation"]
+fn chromatic_uses_linear_light_and_stable_document_space_offsets() {
+    let mut recipe = stack(Kind::Chromatic);
+    recipe.layers[0].params = [0.5, 0., 0.5];
+    let mut source = RgbaImage::new(64, 16);
+    for y in 0..16 {
+        source.put_pixel(32, y, Rgba([64, 0, 0, 255]));
+        source.put_pixel(33, y, Rgba([192, 0, 0, 255]));
+    }
+    let out = shader_gpu::render(&source, &recipe, 1.).unwrap();
+    // The linear-light average encodes to sRGB 146, not the encoded average 128.
+    assert!(out.get_pixel(32, 8)[0].abs_diff(146) <= 1);
+    for color in [[0, 0, 48], [8, 16, 64], [90; 3], [255; 3], [0; 3]] {
+        let solid = RgbaImage::from_pixel(32, 32, Rgba([color[0], color[1], color[2], 128]));
+        let out = shader_gpu::render(&solid, &recipe, 1.).unwrap();
+        for (a, b) in out
+            .get_pixel(16, 16)
+            .0
+            .into_iter()
+            .zip([color[0], color[1], color[2], 128])
+        {
+            assert!(a.abs_diff(b) <= 1);
+        }
+    }
+    for scale in [1, 2, 4] {
+        let mut source = RgbaImage::new(64 * scale, 16 * scale);
+        for y in 0..16 * scale {
+            for x in 32 * scale..33 * scale {
+                source.put_pixel(x, y, Rgba([0, 0, 48, 255]));
+            }
+        }
+        for (angle, dx, dy) in [
+            (0., 0.25, 0.),
+            (90., 0., 0.25),
+            (45., 0.25 / 2_f64.sqrt(), 0.25 / 2_f64.sqrt()),
+        ] {
+            recipe.layers[0].params = [0.25, angle, 0.5];
+            // Vertical edges deliberately span the full image; sample the centre row for x shifts.
+            let out = shader_gpu::render(&source, &recipe, scale as f32).unwrap();
+            let row = 8 * scale;
+            let mass: f64 = (0..out.width())
+                .map(|x| out.get_pixel(x, row)[3] as f64)
+                .sum();
+            let center: f64 = (0..out.width())
+                .map(|x| (x as f64 + 0.5) * out.get_pixel(x, row)[3] as f64)
+                .sum::<f64>()
+                / mass;
+            assert!(
+                (center / scale as f64 - 32.5 - dx).abs() < 0.01,
+                "{scale} {angle} {center} {dy}"
+            );
+            assert!((mass / (255. * scale as f64) - 1.).abs() < 0.01);
+        }
+    }
+}
+
+#[test]
 fn shader_edits_survive_undo_redo_save_reopen_and_resize() {
     let mut editor = Editor::new(Document::new(12, 8).unwrap());
     editor.document.set(

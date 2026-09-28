@@ -71,6 +71,7 @@ fractions, quadrants, textures, sextants et braille. [Guide détaillé](docs/CLA
 - Glyphe, premier plan et fond s’appliquent indépendamment via les cases du pinceau.
 - Clic sur une couleur : premier plan. Clic droit : fond. Shift-clic : modifier la palette.
 - Cliquer sur FG/BG pour choisir une couleur visuellement ou saisir sa valeur hexadécimale. « Fond vide » applique un fond transparent.
+- Après sélection d’une case de palette, le picker FG modifie cette case et la brosse ensemble. Undo/redo les garde synchronisées. Une couleur prélevée à la pipette reste indépendante jusqu’à son ajout à la palette.
 - Sélectionner une zone puis la déplacer, la couper, la copier ou l’effacer.
 - Coller produit un bloc flottant ; Entrée confirme et Échap annule. Repositionner un bloc qui dépasse la grille.
 - Un trait continu correspond à une seule action annulable. La perte de focus annule un geste encore provisoire.
@@ -152,11 +153,15 @@ L’aperçu se zoome à la molette/au trackpad et se déplace en glissant. **−
 - **Vignette** : rayon, douceur et obscurité des bords.
 
 Les effets sont appliqués de haut en bas. Sélectionner un effet pour régler son
-mélange et ses paramètres avec **− / +** ; utiliser **↑ / ↓** pour le déplacer,
+mélange et ses paramètres en **glissant les curseurs** ou avec **− / +** ; utiliser **↑ / ↓** pour le déplacer,
 sa case pour le désactiver, ou **Retirer**. Le bouton **Effets** désactive toute
 la pile. **Comparer avant/après** agit seulement sur l’aperçu et ne modifie pas
 le projet ni l’export. Les changements s’annulent avec Cmd/Ctrl Z et se rétablissent
 avec Cmd/Ctrl Shift Z. Tab parcourt les contrôles ; Entrée les active.
+Un glissement donne un aperçu immédiat et une seule action annulable. Échap ou
+une perte de focus annule le glissement en cours. Les flèches ajustent le curseur
+ayant le focus. Le chromatique interpole en lumière linéaire et gère l’opacité
+par canal pour préserver les primaires sombres : [maths et compromis](docs/CHROMATIC.md).
 
 Quatre looks sont fournis : **Néon, CRT, Riso, Irisé**. Un look remplace la pile,
 ce qui est annulable. **Sauver look / Charger look** échange des recettes locales
@@ -187,8 +192,10 @@ Une écriture temporaire suivie d’un remplacement atomique protège le fichier
 précédent en cas d’échec. Un brouillon de récupération est créé après une
 pause d’édition, séparément du projet. Il est proposé à la prochaine ouverture.
 
-- **Texte** : sélection ou grille entière, UTF-8, avec espaces d’alignement,
-  sans couleurs. Sa présentation dépend de la police de l’application de destination.
+- **Texte** : sélection ou grille entière vers un fichier `.txt` UTF-8 exact, avec
+  espaces d’alignement et lignes vides. Aperçu zoomable et déplaçable, copie
+  texte/monospace, Markdown ou Discord. Les grands dessins se copient par blocs
+  Discord de 2 000 caractères maximum, sans couper les lignes. [Formats et usage](docs/TEXT-EXPORT.md).
 - **PNG** : grille entière, cellules SF Mono de 8 × 16 pixels, échelle ×1/×2/×4,
   transparence ou fond opaque. Ni référence ni aides d’édition.
 
