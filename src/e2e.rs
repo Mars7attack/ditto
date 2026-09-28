@@ -320,15 +320,31 @@ pub fn verify(dir: &Path) -> Result<()> {
         let (w, h, probes): Probes =
             serde_json::from_slice(&std::fs::read(dir.join(format!("{name}.json")))?)?;
         let image = image::open(dir.join(format!("{name}.png")))?.to_rgba8();
-        for (x, y, expected) in probes {
-            let px = (x * image.width() as f32 / w).floor() as u32;
-            let py = (y * image.height() as f32 / h).floor() as u32;
+        for (edge, (x, y, expected)) in probes.into_iter().enumerate() {
+            let sx = x * image.width() as f32 / w;
+            let sy = y * image.height() as f32 / h;
+            let px = sx.floor() as u32;
+            let py = sy.floor() as u32;
             let actual = image.get_pixel(px, py).0;
-            ensure!(
-                actual[..3]
+            let matches = |x, y| {
+                image.get_pixel(x, y).0[..3]
                     .iter()
                     .zip(expected)
-                    .all(|(a, b)| a.abs_diff(b) <= 6),
+                    .all(|(a, b)| a.abs_diff(b) <= 6)
+            };
+            // At 1x, a half-cell can put the centre of a one-pixel stroke
+            // exactly between two physical pixel centres. Accept either tied
+            // nearest pixel, only across the tested edge (never along it).
+            // Away from an exact tie, ceil - 1 == floor: no search tolerance.
+            let alternate = if frame >= 28 && edge < 2 {
+                ((sx.ceil() as u32).saturating_sub(1), py)
+            } else if frame >= 28 {
+                (px, (sy.ceil() as u32).saturating_sub(1))
+            } else {
+                (px, py)
+            };
+            ensure!(
+                matches(px, py) || matches(alternate.0, alternate.1),
                 "{name}: pixel ({px},{py}) = {actual:?}, expected {expected:?}"
             );
         }

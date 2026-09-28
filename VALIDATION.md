@@ -24,6 +24,11 @@ Branche `fix/keyboard-cursor-history`, base `e84ba77` (grille et picker inclus).
   et `validation/runtime/native/run-opdqh98n/`.
 - Les scénarios utilisent le routage applicatif et le rendu natif ; les limites
   d’injection système décrites dans [docs/TESTS.md](docs/TESTS.md) restent applicables.
+- Première exécution Linux : 135 tests passent ; une sonde du bord du curseur
+  échoue à DPI 1 alors que le cadre est complet dans la capture. En cas d’égalité
+  exacte entre deux centres de pixels, la sonde accepte désormais l’un des deux,
+  uniquement perpendiculairement au trait. Les six captures Linux ont été
+  contrôlées : les quatre côtés sont présents, y compris après undo/redo.
 
 ## Grille selon la densité d’écran — 28 septembre 2026
 
