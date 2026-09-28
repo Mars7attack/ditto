@@ -2,6 +2,7 @@ mod accessibility;
 mod app;
 mod color_picker;
 mod e2e;
+mod grid_e2e;
 #[cfg(test)]
 mod regression_tests;
 mod render;
@@ -213,7 +214,7 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                         .as_ref()
                         .map(|r| &r.asset),
                 );
-                match r.draw(draw, window.scale_factor() as f32) {
+                match r.draw(draw) {
                     Ok(()) => {}
                     Err(wgpu::SurfaceError::OutOfMemory) => {
                         self.state.status = "Mémoire GPU insuffisante.".into();
@@ -345,6 +346,15 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                         && let Err(e) = e2e::verify(self.smoke.as_ref().unwrap())
                     {
                         self.failure = Some(format!("Native E2E pixels: {e:#}"));
+                    }
+                    if !self.shader_quality
+                        && self.smoke_frame == e2e::END
+                        && let Err(e) = grid_e2e::verify(
+                            self.renderer.as_ref().unwrap(),
+                            self.smoke.as_ref().unwrap(),
+                        )
+                    {
+                        self.failure = Some(format!("Grid display scaling: {e:#}"));
                     }
                     if self.smoke_frame >= if self.shader_quality { 5 } else { e2e::END } {
                         if self.shader_quality

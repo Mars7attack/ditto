@@ -20,6 +20,8 @@ le job natif.
    GPU → captures, projet sur disque → réouverture → export. Assertions de pixels
    ciblées plutôt que comparaison d’une fenêtre entière sensible aux polices/DPI.
    Un second parcours compare les contours des glyphes avec un shader neutre.
+   La grille est aussi rendue dans des textures à cinq résolutions physiques,
+   via le même pipeline que la fenêtre, puis contrôlée pixel par pixel.
 
 ## Matrice de comportements
 
@@ -38,6 +40,7 @@ le job natif.
 | Thème | Presets, 12 tokens, brouillon/annulation/enregistrement, isolation du document, échec de persistance sans perte de préférences | `guides_and_settings`, tests d’application, captures natives |
 | Historique | Undo/redo, annulation, branche après undo, no-op conservant redo, 160 opérations mixtes comparées à des snapshots, état dirty et données partagées | `core_and_project`, `behavior_contracts`, tests d’application |
 | Fichiers / récupération | Save/load V1–V6, version inconnue et corruption, entrées absentes/troncature ZIP, document invalide préservant le fichier existant, erreurs disque, édition pendant sauvegarde async, autosave/récupération isolée | `core_and_project`, `extended_glyphs`, `sfmono`, `guides_and_settings`, `behavior_contracts`, `regression_tests` |
+| Grille / écrans | Chaque ligne couvre un pixel physique, DPI 1/1.25/1.5/2/3, zooms entiers/fractionnaires, pan et clipping, aller-retour entre densités sans dérive, grille masquée/sous le seuil | `render::grid_tests`, 30 captures GPU `editor/grid/` |
 | Rendu / export | Atlas/contours, coutures, fallback, échelles/alpha, transparence, shaders, guides/référence exclus, pixel du curseur et couleur picker, roundtrip | `sfmono`, `shaders`, `core_and_project`, GPU et parcours natifs |
 | Accessibilité / disposition | Navigation Tab, retours F6, champs, teinte ajustable, valeurs accessibles, contrôles sans chevauchement à la taille minimum | Tests d’application et `regression_tests` |
 

@@ -2,6 +2,10 @@
 
 ## À paraître
 
+- Grille : lignes alignées sur les pixels physiques, épaisseur d’un pixel quelle
+  que soit la densité de l’écran, sans trous au zoom/pan fractionnaire. Régressions
+  GPU sur 30 combinaisons d’échelle d’affichage, zoom et déplacement.
+
 - Sélecteur visuel HSV et champ hexadécimal synchronisés pour toutes les couleurs,
   aperçu avant/après, souris, clavier et teinte accessible.
 - Curseur clavier rétabli après les outils Guides/Gomme guides et retours des

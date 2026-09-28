@@ -44,14 +44,51 @@ struct Batch {
     clip: Rect,
     range: Range<u32>,
 }
+struct Hairline {
+    first: usize,
+    vertical: bool,
+    // Keep the unsnapped anchor so resolving the same frame at another DPI
+    // cannot accumulate rounding error.
+    anchor: f32,
+}
 pub struct Draw {
     vertices: Vec<Vertex>,
     batches: Vec<Batch>,
+    hairlines: Vec<Hairline>,
     pub width: f32,
     pub height: f32,
     pub clip: Rect,
 }
 impl Draw {
+    fn align_hairlines(&mut self, width: u32, height: u32) {
+        for line in &self.hairlines {
+            let size = if line.vertical { width } else { height } as f32;
+            let logical = if line.vertical {
+                self.width
+            } else {
+                self.height
+            };
+            let pixel = (line.anchor * (size / logical)).round();
+            let ndc = |p: f32| {
+                if line.vertical {
+                    p / size * 2. - 1.
+                } else {
+                    1. - p / size * 2.
+                }
+            };
+            for (i, vertex) in self.vertices[line.first..line.first + 6]
+                .iter_mut()
+                .enumerate()
+            {
+                let far = if line.vertical {
+                    matches!(i, 1 | 4 | 5)
+                } else {
+                    matches!(i, 2 | 3 | 5)
+                };
+                vertex.position[usize::from(!line.vertical)] = ndc(pixel + f32::from(far));
+            }
+        }
+    }
     /// Test the emitted, clipped solid geometry, not just an application flag.
     #[cfg(test)]
     pub fn has_solid_at(&self, p: (f32, f32), c: Color) -> bool {
@@ -89,6 +126,7 @@ impl Draw {
         Self {
             vertices: Vec::new(),
             batches: Vec::new(),
+            hairlines: Vec::new(),
             width,
             height,
             clip: Rect::new(0., 0., width, height),
@@ -145,6 +183,23 @@ impl Draw {
             ],
             0,
         );
+    }
+    fn hairline(&mut self, r: Rect, vertical: bool, c: Color, a: f32) {
+        let first = self.vertices.len();
+        self.rect(r, c, a);
+        if self.vertices.len() == first + 6 {
+            self.hairlines.push(Hairline {
+                first,
+                vertical,
+                anchor: if vertical { r.x } else { r.y },
+            });
+        }
+    }
+    pub fn vertical_line(&mut self, x: f32, top: f32, bottom: f32, c: Color, a: f32) {
+        self.hairline(Rect::new(x, top, 1., bottom - top), true, c, a);
+    }
+    pub fn horizontal_line(&mut self, left: f32, right: f32, y: f32, c: Color, a: f32) {
+        self.hairline(Rect::new(left, y, right - left, 1.), false, c, a);
     }
     /// Smooth vertex-interpolated gradient; shares the existing solid batch.
     pub fn gradient(&mut self, r: Rect, corners: [[f32; 4]; 4]) {
@@ -312,6 +367,7 @@ impl Draw {
         );
     }
 }
+
 pub struct Renderer {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -631,7 +687,7 @@ impl Renderer {
         }
         self.ref_asset = asset.cloned();
     }
-    pub fn draw(&mut self, draw: Draw, scale: f32) -> Result<(), wgpu::SurfaceError> {
+    pub fn draw(&mut self, draw: Draw) -> Result<(), wgpu::SurfaceError> {
         let surface = match self.surface.get_current_texture() {
             Ok(s) => s,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -641,6 +697,20 @@ impl Renderer {
             Err(e) => return Err(e),
         };
         let view = surface.texture.create_view(&Default::default());
+        self.render_to_view(draw, &view, self.config.width, self.config.height);
+        if let Some(path) = self.capture_next.take() {
+            self.capture_error = self
+                .capture(&surface.texture, &path)
+                .err()
+                .map(|e| format!("{e:#}"));
+        }
+        surface.present();
+        Ok(())
+    }
+    fn render_to_view(&self, mut draw: Draw, view: &wgpu::TextureView, width: u32, height: u32) {
+        draw.align_hairlines(width, height);
+        let scale_x = width as f32 / draw.width;
+        let scale_y = height as f32 / draw.height;
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let vb = self
             .device
@@ -653,7 +723,7 @@ impl Renderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Terminal"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -667,12 +737,12 @@ impl Renderer {
             pass.set_pipeline(&self.pipeline);
             pass.set_vertex_buffer(0, vb.slice(..));
             for b in draw.batches {
-                let x = (b.clip.x.max(0.) * scale).round() as u32;
-                let y = (b.clip.y.max(0.) * scale).round() as u32;
-                let endx = ((b.clip.x + b.clip.w) * scale).round().max(0.) as u32;
-                let endy = ((b.clip.y + b.clip.h) * scale).round().max(0.) as u32;
-                let w = endx.min(self.config.width).saturating_sub(x);
-                let h = endy.min(self.config.height).saturating_sub(y);
+                let x = (b.clip.x.max(0.) * scale_x).round() as u32;
+                let y = (b.clip.y.max(0.) * scale_y).round() as u32;
+                let endx = ((b.clip.x + b.clip.w) * scale_x).round().max(0.) as u32;
+                let endy = ((b.clip.y + b.clip.h) * scale_y).round().max(0.) as u32;
+                let w = endx.min(width).saturating_sub(x);
+                let h = endy.min(height).saturating_sub(y);
                 if w == 0 || h == 0 {
                     continue;
                 }
@@ -695,21 +765,44 @@ impl Renderer {
             }
         }
         self.queue.submit(Some(encoder.finish()));
-        if let Some(path) = self.capture_next.take() {
-            self.capture_error = self
-                .capture(&surface.texture, &path)
-                .err()
-                .map(|e| format!("{e:#}"));
-        }
-        surface.present();
-        Ok(())
+    }
+    /// Native regression harness: the production UI/pipeline at explicit physical
+    /// resolutions, independent of the monitor on which the test window lives.
+    pub fn capture_draw(
+        &self,
+        draw: Draw,
+        width: u32,
+        height: u32,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Display-scale regression"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        self.render_to_view(
+            draw,
+            &texture.create_view(&Default::default()),
+            width,
+            height,
+        );
+        self.capture(&texture, path)
     }
     fn capture(&self, texture: &wgpu::Texture, path: &std::path::Path) -> anyhow::Result<()> {
         anyhow::ensure!(
-            self.config.usage.contains(wgpu::TextureUsages::COPY_SRC),
+            texture.usage().contains(wgpu::TextureUsages::COPY_SRC),
             "Capture GPU non prise en charge"
         );
-        let (width, height) = (self.config.width, self.config.height);
+        let (width, height) = (texture.width(), texture.height());
         let stride = (width * 4).div_ceil(256) * 256;
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Smoke frame readback"),
@@ -766,5 +859,105 @@ impl Renderer {
         }
         image.save(path)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod grid_tests {
+    use super::*;
+    use crate::app::State;
+
+    #[test]
+    fn display_transitions_do_not_accumulate_rounding_or_move_artwork() {
+        let mut draw = Draw::new(1184., 832.);
+        draw.rect(Rect::new(32.17, 40.38, 19.2, 23.4), [200, 30, 40], 0.8);
+        let art: Vec<_> = draw.vertices.iter().map(|v| v.position).collect();
+        draw.vertical_line(314.37, 110.2, 600.8, [255; 3], 0.6);
+        draw.horizontal_line(312.2, 900.8, 145.23, [255; 3], 0.6);
+        draw.align_hairlines(1184, 832);
+        let expected: Vec<_> = draw.vertices.iter().map(|v| v.position).collect();
+        for (w, h) in [(2368, 1664), (1480, 1040), (3552, 2496), (1184, 832)] {
+            draw.align_hairlines(w, h);
+            assert_eq!(
+                draw.vertices[..6]
+                    .iter()
+                    .map(|v| v.position)
+                    .collect::<Vec<_>>(),
+                art
+            );
+        }
+        assert_eq!(
+            draw.vertices.iter().map(|v| v.position).collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    #[test]
+    fn hidden_and_too_dense_grids_emit_no_lines_or_change_document() {
+        let mut s = State::new(std::path::PathBuf::new());
+        s.modal = None;
+        s.fit = false;
+        let doc = s.editor.document.clone();
+        for (enabled, zoom, shown) in [(false, 24., false), (true, 3.99, false), (true, 4., true)] {
+            s.grid = enabled;
+            s.cell_size = zoom;
+            let draw = s.frame();
+            assert_eq!(!draw.hairlines.is_empty(), shown);
+            assert_eq!(s.editor.document, doc);
+            assert!(!s.editor.dirty());
+        }
+    }
+
+    #[test]
+    fn every_grid_line_covers_one_physical_pixel_at_each_display_scale_and_zoom() {
+        for dpi in [1., 1.25, 1.5, 2., 3.] {
+            for zoom in [4., 8.3, 16., 31.5] {
+                for pan in [(0., 0.), (0.13, -0.37), (-57.73, 19.41)] {
+                    let mut s = State::new(std::path::PathBuf::new());
+                    s.modal = None;
+                    s.fit = false;
+                    s.grid = true;
+                    s.cell_size = zoom;
+                    s.pan = pan;
+                    let mut draw = s.frame();
+                    let (width, height) = ((s.width * dpi) as u32, (s.height * dpi) as u32);
+                    draw.align_hairlines(width, height);
+                    let c = s.theme().grid;
+                    let color = [
+                        c[0] as f32 / 255.,
+                        c[1] as f32 / 255.,
+                        c[2] as f32 / 255.,
+                        0.6,
+                    ];
+                    let mut checked = 0;
+                    for quad in draw.vertices.as_chunks::<6>().0 {
+                        if quad.iter().any(|v| v.color != color) {
+                            continue;
+                        }
+                        let min_x = (quad[0].position[0] + 1.) * width as f32 / 2.;
+                        let max_x = (quad[1].position[0] + 1.) * width as f32 / 2.;
+                        let min_y = (1. - quad[0].position[1]) * height as f32 / 2.;
+                        let max_y = (1. - quad[2].position[1]) * height as f32 / 2.;
+                        let (start, end) = if max_x - min_x < max_y - min_y {
+                            (min_x, max_x)
+                        } else {
+                            (min_y, max_y)
+                        };
+                        let covered = (end - 0.5).ceil() - (start - 0.5).ceil();
+                        assert_eq!(
+                            covered, 1.,
+                            "grid line lost or doubled: DPI {dpi}, zoom {zoom}, pan {pan:?}, physical span {start}..{end}"
+                        );
+                        assert!(
+                            (end - start - 1.).abs() < 0.001,
+                            "grid thickness depends on DPI {dpi}: {}",
+                            end - start
+                        );
+                        checked += 1;
+                    }
+                    assert!(checked > 10);
+                }
+            }
+        }
     }
 }

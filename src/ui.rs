@@ -369,25 +369,19 @@ pub fn build(s: &State) -> (Draw, Vec<Hit>) {
     }
     if s.grid && s.cell_size >= 4. {
         for x in x0..=x1 {
-            u.d.rect(
-                Rect::new(
-                    s.origin.0 + x as f32 * s.cell_width(),
-                    s.canvas.y,
-                    0.5,
-                    s.canvas.h,
-                ),
+            u.d.vertical_line(
+                s.origin.0 + x as f32 * s.cell_width(),
+                s.canvas.y,
+                s.canvas.y + s.canvas.h,
                 u.theme.grid,
                 0.6,
             );
         }
         for y in y0..=y1 {
-            u.d.rect(
-                Rect::new(
-                    s.canvas.x,
-                    s.origin.1 + y as f32 * s.cell_size,
-                    s.canvas.w,
-                    0.5,
-                ),
+            u.d.horizontal_line(
+                s.canvas.x,
+                s.canvas.x + s.canvas.w,
+                s.origin.1 + y as f32 * s.cell_size,
                 u.theme.grid,
                 0.6,
             );

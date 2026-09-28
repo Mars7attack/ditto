@@ -1,5 +1,29 @@
 # Ditto — validation du 28 septembre 2026
 
+## Grille selon la densité d’écran — 28 septembre 2026
+
+Branche `fix/grid-display-scaling`, base `6676a4f` (sélecteur de couleurs inclus).
+
+- Cause : traits de grille de 0,5 pixel logique, sans alignement physique. À DPI 1
+  et avec un zoom/pan fractionnaire, certains traits ne couvrent aucun centre de
+  pixel et disparaissent. Régression reproduite avant correction.
+- Correction à la dernière étape du rendu : chaque trait est aligné sur le pixel
+  physique le plus proche et occupe exactement un pixel. La position initiale
+  est conservée pour éviter une dérive lors des changements d’écran. Cellules,
+  glyphes, coordonnées de souris, référence, guides et exports restent inchangés.
+- Le clipping utilise lui aussi les dimensions réelles de la cible de rendu.
+- 131 tests passent, dont deux GPU. Trois nouvelles régressions : 60 combinaisons
+  DPI/zoom/pan, changements successifs de densité sans déplacement des glyphes,
+  et grille masquée/sous le seuil sans mutation du document.
+- 30 captures GPU supplémentaires : DPI 1, 1.25, 1.5, 2 et 3 ; hauteurs de cellule
+  8.3, 16 et 31.5 ; pan nul ou fractionnaire. Toutes les lignes sont présentes,
+  larges d’un pixel et confinées au document. Les deux parcours natifs existants
+  passent également sur Apple M2 / Metal.
+- Preuves : `validation/runtime/grid/` et
+  `validation/runtime/native/run-y9tw1whz/editor/grid/result.txt` ; capture à DPI 1,
+  zoom 31.5, pan fractionnaire inspectée. Les densités sont simulées dans des
+  textures GPU par le pipeline de production ; aucun écran physique n’a été reconfiguré.
+
 ## Sélecteur de couleurs et couverture de régression — 28 septembre 2026
 
 Branche `feat/color-picker-cursor-tests`, base `631a1ae` (petits L braille inclus).

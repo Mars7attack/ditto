@@ -27,5 +27,7 @@ for name, flag in [("editor", "--e2e-dir"), ("shaders", "--shader-quality-smoke-
         sys.exit(f"Native {name} failed: {error}. Evidence: {output}")
     if name == "editor" and not (output / name / "e2e-result.txt").is_file():
         sys.exit(f"Native editor exited without its assertion report: {output}")
+    if name == "editor" and not (output / name / "grid/result.txt").is_file():
+        sys.exit(f"Native editor exited without its display-scale grid report: {output}")
     print(f"PASS {name}", flush=True)
 print(f"PASS native E2E — artifacts: {output}")
