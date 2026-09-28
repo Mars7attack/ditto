@@ -1218,6 +1218,11 @@ fn text_export_window(u: &mut Ui, s: &State, export: &ditto::text_export::Export
             continue;
         }
         for (x, ch) in line.chars().enumerate() {
+            // Alignment blanks have no ink; avoid uploading hundreds of thousands
+            // of transparent quads when fitting a large, sparse braille canvas.
+            if matches!(ch, ' ' | '\u{a0}' | '\u{2800}') {
+                continue;
+            }
             let left = board.x + x as f32 * 8. * scale;
             if left + 8. * scale < preview.x || left >= preview.x + preview.w {
                 continue;
