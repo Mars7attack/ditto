@@ -2,6 +2,10 @@
 
 ## À paraître
 
+- Contours ASCII+ : 47 symboles de cadres, courbes, traits, diagonales et flèches.
+  Texture ASCII+ : 45 symboles de grain, motifs, ombrages et remplissages.
+  Deux pages thématiques par preset ; les 94 mappings ASCII existants sont conservés.
+
 - Points / braille : huit petits L de trois rangées dans la banque « 3 points »,
   couvrant les quatre coins alignés en haut et en bas. Mappings précédents conservés.
 

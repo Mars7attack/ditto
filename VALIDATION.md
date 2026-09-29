@@ -678,3 +678,26 @@ accessible. Ne pas présenter le contrôle de compilation comme une recette Linu
 - Historique non persistant ; texte annulé par événement de saisie, sans regroupement temporel.
 - Pas de promesse de comportement du presse-papiers après fermeture sur chaque environnement Linux.
 - La validation Linux graphique et la recette complète des lecteurs d’écran restent ouvertes.
+
+## Contours et textures ASCII+ — 29 septembre 2026
+
+- Travail isolé dans `ditto-contour-texture`, branche `feat/contour-texture-glyphs`,
+  depuis `631a1aefa4370e51582b9d34f3d3a96db29cc950` (origin/main).
+- Contours ASCII+ : 141 formes, dont 47 ajouts dans Cadres / courbes (22) et
+  Traits / signes (25). Texture ASCII+ : 139 formes, dont 45 ajouts dans
+  Grain / motifs (14) et Remplissages (31). Cinq pages par preset.
+- Les 94 mappings ASCII et les limites de leurs trois banques sont conservés,
+  y compris la dernière banque partielle. Les 36 sources A–Z / 0–9 restent utilisées.
+- Les ajouts réutilisent le catalogue de 665 glyphes ; ni les identifiants de
+  glyphes ni le format de projet ne changent. Les libellés « ASCII+ » indiquent Unicode.
+- `cargo test --locked` : 96 tests passent, deux tests GPU ignorés par défaut.
+  Régression sur tous les anciens mappings, caractères visibles, unicité et accès
+  à chaque cible : OK. Formatage, clippy strict et diff sans erreurs : OK.
+- `cargo run --locked --example classic_charsets_proof -- validation/runtime/classic-charsets` :
+  exports `contours.png` et `textures.png` inspectés, mappings texte écrits,
+  sauvegarde/relecture des deux projets vérifiée.
+- Bundle macOS release signé ad hoc ; smoke réussi sur Apple M2 / Metal / SF Mono,
+  journal `validation/runtime/classic-charsets/native.log` dans le worktree.
+  Ce scénario exerce le routage interne et le pipeline GPU ; pas de frappe physique
+  ni d’exécution graphique Linux dans cette recette.
+- Version publique et BUILD_ID conservés ; aucune release GitHub publiée.

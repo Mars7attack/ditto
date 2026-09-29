@@ -57,6 +57,10 @@ Le bouton **Mode : souris / clavier** dans la barre supérieure active la saisie
 d’Asciitor. Le panneau des glyphes devient un sélecteur de charset avec correspondances
 visibles. Une frappe insère le glyphe et avance. Six charsets utilisent uniquement les
 36 touches A–Z et 0–9 ; la rangée des chiffres fonctionne sans Maj sur AZERTY.
+**Contours ASCII+** ajoute 47 symboles classiques pour les cadres, courbes, traits,
+diagonales et flèches. **Texture ASCII+** ajoute 45 symboles de grain, motifs,
+ombrages et remplissages. Chacun conserve ses trois pages ASCII et ajoute deux
+pages thématiques accessibles avec les mêmes touches.
 Le braille propose 156 formes : quatre banques par hauteur et deux pages
 **Espacés / lignes** et **Espacés / blocs**, qui regroupent les motifs avec des rangées vides. Les autres banques gardent leurs glyphes.
 **Cmd + ↑ / ↓** change de banque sur MacBook, sans Fn (Ctrl + ↑ / ↓ sous Linux).

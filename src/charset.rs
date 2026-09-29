@@ -61,6 +61,22 @@ fn make(
     }
 }
 
+/// Keep the original bank boundaries and mappings when appending themed pages.
+fn extend_banks(mut set: Charset, banks: &[(&'static str, &str)]) -> Charset {
+    for &(name, characters) in banks {
+        let start = set.targets.len();
+        for c in characters.chars() {
+            let g = font::glyph(c).expect("curated charset glyph must exist in the catalogue");
+            if !set.targets.contains(&g) {
+                set.targets.push(g);
+            }
+        }
+        assert!(set.targets.len() - start <= KEYS.len());
+        set.banks.push((start..set.targets.len(), Some(name)));
+    }
+    set
+}
+
 /// One/two columns per occupied row; braille dot numbering is not row-major.
 fn braille_rows(start: usize, rows: &[u8]) -> Glyph {
     let left = [0, 1, 2, 6];
@@ -252,17 +268,29 @@ pub static ALL: LazyLock<Vec<Charset>> = LazyLock::new(|| {
             .filter_map(char::from_u32)
     };
     vec![
-        make(
-            "contours-ascii",
-            "Contours ASCII",
-            r#"/\|_-+.,'`()[]{}<>:;^v=~!*"#,
-            (0x21..=0x7e).filter_map(char::from_u32),
+        extend_banks(
+            make(
+                "contours-ascii",
+                "Contours ASCII+",
+                r#"/\|_-+.,'`()[]{}<>:;^v=~!*"#,
+                (0x21..=0x7e).filter_map(char::from_u32),
+            ),
+            &[
+                ("Cadres / courbes", "┌┐└┘├┤┬┴┼╭╮╰╯╔╗╚╝╠╣╦╩╬"),
+                ("Traits / signes", "─│━┃═║╱╲╳┄┆┈┊╌╎←→↑↓↔↕⌐¬⌠⌡"),
+            ],
         ),
-        make(
-            "texture-ascii",
-            "Texture ASCII",
-            r#".:;,'`il!|/\_-+=*ox%cO08#@"#,
-            (0x21..=0x7e).filter_map(char::from_u32),
+        extend_banks(
+            make(
+                "texture-ascii",
+                "Texture ASCII+",
+                r#".:;,'`il!|/\_-+=*ox%cO08#@"#,
+                (0x21..=0x7e).filter_map(char::from_u32),
+            ),
+            &[
+                ("Grain / motifs", "·∙•°○◘◙♦☼■≈≡±÷"),
+                ("Remplissages", "░▒▓█▀▄▌▐▁▂▃▅▆▇▏▎▍▊▉▔▕▖▗▘▝▚▞▙▛▜▟"),
+            ],
         ),
         make(
             "traits-unicode",

@@ -40,8 +40,8 @@ affectés aux mêmes touches, jamais les cellules déjà dessinées.
 
 | Preset | Glyphes | Banques |
 | --- | ---: | ---: |
-| Contours ASCII | 94 | 3 |
-| Texture ASCII | 94 | 3 |
+| Contours ASCII+ | 141 | 3 pages ASCII + 2 pages de symboles |
+| Texture ASCII+ | 139 | 3 pages ASCII + 2 pages de symboles |
 | Traits Unicode | 84 | 3 |
 | Blocs et ombrages | 79 | 3 |
 | Mosaïques / sextants | 79 | 3 |
@@ -50,6 +50,27 @@ affectés aux mêmes touches, jamais les cellules déjà dessinées.
 Les correspondances des 26 lettres de la première banque des quatre premiers presets
 restent celles d’Asciitor. Les glyphes supplémentaires utilisent les chiffres, puis les
 banques suivantes. Les blocs, ombrages et sextants conservent leur catalogue complet.
+
+### Contours ASCII+ et Texture ASCII+
+
+Les trois premières pages conservent les 94 caractères ASCII imprimables et
+leurs correspondances, y compris les touches libres à la fin de la troisième
+page. Les ajouts sont des symboles classiques de terminal et d’art textuel,
+répartis dans deux pages thématiques par preset. Le « + » indique l’extension Unicode.
+
+| Preset | Page | Formes | Usage |
+| --- | --- | ---: | --- |
+| Contours ASCII+ | Cadres / courbes | 22 | Coins droits, arrondis, doubles et jonctions |
+| Contours ASCII+ | Traits / signes | 25 | Traits fins/épais/doubles, diagonales, pointillés, flèches et crochets |
+| Texture ASCII+ | Grain / motifs | 14 | Points, cercles, losange, soleil, carré et motifs répétés |
+| Texture ASCII+ | Remplissages | 31 | Densités, fractions de cellule, quadrants et masses |
+
+Exemples de contours : **┌ ┐ └ ┘ ╭ ╮ ╰ ╯ ╔ ╗ ╚ ╝ ╱ ╲ ╳ ← → ↑ ↓**.
+Exemples de textures : **· ∙ • ° ○ ◘ ◙ ♦ ☼ ■ ≈ ≡ ░ ▒ ▓ █ ▖ ▗ ▚ ▞**.
+Chaque nouvelle page commence sur A ; les sources restent A–Z et 0–9.
+Cmd + ↑ / ↓ (Ctrl sous Linux) passe aussi sur ces nouvelles pages.
+Les nouveaux caractères utilisent le même atlas et le même pipeline de rendu/export
+que les autres glyphes ; copier le dessin conserve leurs caractères Unicode.
 
 ### Braille : hauteurs et motifs espacés
 

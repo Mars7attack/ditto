@@ -46,6 +46,50 @@ fn asciitor_letters_are_preserved_and_sources_are_only_letters_and_digits() {
     }
 }
 #[test]
+fn classic_extensions_preserve_ascii_keys_and_keep_families_on_separate_pages() {
+    for (set, old_start, extra_counts) in [
+        (&charset::ALL[0], r#"/\|_-+.,'`()[]{}<>:;^v=~!*"#, [22, 25]),
+        (&charset::ALL[1], r#".:;,'`il!|/\_-+=*ox%cO08#@"#, [14, 31]),
+    ] {
+        let mut original: Vec<char> = old_start.chars().collect();
+        for c in '!'..='~' {
+            if !original.contains(&c) {
+                original.push(c);
+            }
+        }
+        assert_eq!(original.len(), 94);
+        // Includes the final partial bank: additions must not fill its free keys.
+        for (i, c) in original.into_iter().enumerate() {
+            let bank = i / charset::KEYS.len();
+            let key = charset::KEYS[i % charset::KEYS.len()];
+            assert_eq!(set.resolve(bank, key).map(font::character), Some(c));
+        }
+        assert_eq!(set.bank_len(2), 22);
+        assert_eq!(set.resolve(2, 'c'), None);
+        assert_eq!(set.banks(), 5);
+        for (bank, count) in extra_counts.into_iter().enumerate() {
+            assert_eq!(set.bank_len(bank + 3), count);
+            for slot in 0..count {
+                let glyph = set.at(bank + 3, slot).unwrap();
+                assert!(!font::character(glyph).is_ascii());
+                assert!(ditto::typeface::mask(glyph).iter().any(|alpha| *alpha > 0));
+            }
+        }
+    }
+    for (set, bank, key, glyph) in [
+        (0, 3, 'p', '╭'),
+        (0, 4, 'h', '←'),
+        (1, 3, 'e', '•'),
+        (1, 4, 'a', '░'),
+        (1, 4, 'e', '▓'),
+    ] {
+        assert_eq!(
+            charset::ALL[set].resolve(bank, key).map(font::character),
+            Some(glyph)
+        );
+    }
+}
+#[test]
 fn every_charset_target_is_reachable_in_its_banks() {
     for set in charset::ALL.iter() {
         let reachable: Vec<_> = (0..set.banks())
