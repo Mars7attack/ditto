@@ -39,4 +39,7 @@ codesign --force --sign - "$app_path"
 if [ "$mode" = release ] && [ "$app_path" = dist/Ditto.app ]; then
   /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app_path" dist/Ditto-macOS-arm64.zip
 fi
-printf 'Application: %s/%s\n' "$PWD" "$app_path"
+case "$app_path" in
+  /*) printf 'Application: %s\n' "$app_path" ;;
+  *) printf 'Application: %s/%s\n' "$PWD" "$app_path" ;;
+esac
