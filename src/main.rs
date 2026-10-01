@@ -181,6 +181,10 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                         (false, 14) => Some("guide-below-shader.png"),
                         (false, 15) => Some("guide-above-shader.png"),
                         (false, 16) => Some("guide-recolored.png"),
+                        (false, 17) => Some("contours-cadres-window.png"),
+                        (false, 18) => Some("contours-traits-window.png"),
+                        (false, 19) => Some("textures-grain-window.png"),
+                        (false, 20) => Some("textures-remplissages-window.png"),
                         _ => None,
                     };
                     r.capture_next = name.map(|name| dir.join(name));
@@ -320,7 +324,20 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
                     {
                         self.failure = Some(format!("Guide compositing: {e:#}"));
                     }
-                    if self.smoke_frame >= if self.shader_quality { 5 } else { 17 } {
+                    if !self.shader_quality && (17..=20).contains(&self.smoke_frame) {
+                        let (preset, bank) = match self.smoke_frame {
+                            17 => (0, 3),
+                            18 => (0, 4),
+                            19 => (1, 3),
+                            20 => (1, 4),
+                            _ => unreachable!(),
+                        };
+                        if let Err(e) = self.prepare_classic_charset_smoke(preset, bank) {
+                            self.failure = Some(format!("Classic charset: {e:#}"));
+                        }
+                        window.request_redraw();
+                    }
+                    if self.smoke_frame >= if self.shader_quality { 5 } else { 21 } {
                         if self.shader_quality
                             && self.smoke_frame == 5
                             && let Err(e) = self.verify_quality_smoke()
@@ -381,6 +398,46 @@ impl ApplicationHandler<accesskit_winit::Event> for Ditto {
     }
 }
 impl Ditto {
+    fn prepare_classic_charset_smoke(&mut self, preset: usize, bank: usize) -> anyhow::Result<()> {
+        use ditto::{
+            charset,
+            core::{Brush, Document, Editor},
+        };
+        let s = &mut self.state;
+        s.editor = Editor::new(Document::new(36, 6).map_err(anyhow::Error::msg)?);
+        s.modal = None;
+        s.edit_mode = EditMode::Keyboard;
+        s.brush = Brush::default();
+        s.brush.cell.fg = s.theme().text;
+        s.cursor = (1, 2);
+        s.fit = false;
+        s.cell_size = 40.;
+        s.pan = (0., 0.);
+        s.trace = false;
+        s.grid = false;
+        s.mouse = (0., 0.);
+        s.activate(Action::SetCharset(preset));
+        s.activate(Action::CharsetBank(bank as i32));
+        s.layout(s.width, s.height);
+        let set = s.active_charset();
+        anyhow::ensure!(set.banks() == 5, "ASCII+ pages are absent from this binary");
+        anyhow::ensure!(set.targets.len() == if preset == 0 { 141 } else { 139 });
+        let count = set.bank_len(bank);
+        for (slot, key) in charset::KEYS.iter().enumerate().take(count) {
+            anyhow::ensure!(
+                s.keyboard_input(&key.to_string()),
+                "mapped input was rejected"
+            );
+            anyhow::ensure!(
+                s.editor.document.get(slot as i32 + 1, 2).unwrap().glyph
+                    == set.at(bank, slot).unwrap(),
+                "mapped character differs from its visible target"
+            );
+        }
+        s.status = format!("{} · {} · {} formes", set.name, set.bank_label(bank), count);
+        eprintln!("CLASSIC CHARSET OK: {}", s.status);
+        Ok(())
+    }
     fn prepare_guide_order_smoke(&mut self) {
         use ditto::core::{Asset, Cell, Document, Editor, Reference};
         let mut doc = Document::new(8, 4).unwrap();

@@ -235,6 +235,24 @@ contrôle le formatage, les lints, les tests et les paquets sur macOS et Ubuntu.
 Les binaires, la licence et `BUILD_ID` sont livrés ensemble ; le bundle macOS
 reprend la version publique et l’identifiant interne dans ses métadonnées.
 
+Pour construire le bundle habituel depuis `main` lorsqu’un autre agent utilise
+une branche dans le dossier principal, construire dans un worktree dédié :
+
+```sh
+git fetch origin main
+git worktree add --detach ../ditto-release-main origin/main
+cd ../ditto-release-main
+scripts/package-macos.sh release ../ditto/dist/Ditto.app
+/usr/libexec/PlistBuddy -c 'Print :DittoSourceRevision' ../ditto/dist/Ditto.app/Contents/Info.plist
+```
+
+`DittoSourceRevision` identifie le commit emballé ; le suffixe `-dirty` indique
+une construction avec des modifications suivies non committées.
+Le scénario natif capture aussi les quatre pages ajoutées de Contours ASCII+
+et Texture ASCII+, et vérifie l’insertion de chaque glyphe depuis sa touche.
+Après une mise à jour du bundle, quitter Ditto puis le relancer charge le nouveau
+binaire ; une fenêtre déjà ouverte continue d’exécuter son ancienne version.
+
 ## Vérification
 
 ```sh

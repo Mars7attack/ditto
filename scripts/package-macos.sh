@@ -7,6 +7,10 @@ build_id="$(cat BUILD_ID)"
 case "$build_id" in X[0-9][0-9][0-9][0-9]) ;; *) echo 'Invalid BUILD_ID' >&2; exit 1 ;; esac
 bundle_build="$(printf '%s' "$build_id" | sed 's/^X0*//')"
 case "$mode" in release) cargo build --release --locked ;; debug) cargo build --locked ;; *) echo 'Usage: package-macos.sh [release|debug]' >&2; exit 2 ;; esac
+source_revision="$(git rev-parse --verify HEAD 2>/dev/null || printf unknown)"
+if [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null || true)" ]; then
+  source_revision="$source_revision-dirty"
+fi
 app_path="${2:-dist/Ditto.app}"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "target/$mode/ditto" "$app_path/Contents/MacOS/ditto.next"
@@ -26,6 +30,7 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
 <key>CFBundleShortVersionString</key><string>$public_version</string>
 <key>CFBundleVersion</key><string>$bundle_build</string>
 <key>DittoBuildID</key><string>$build_id</string>
+<key>DittoSourceRevision</key><string>$source_revision</string>
 <key>LSMinimumSystemVersion</key><string>11.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

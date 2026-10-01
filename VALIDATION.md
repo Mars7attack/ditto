@@ -701,3 +701,32 @@ accessible. Ne pas présenter le contrôle de compilation comme une recette Linu
   Ce scénario exerce le routage interne et le pipeline GPU ; pas de frappe physique
   ni d’exécution graphique Linux dans cette recette.
 - Version publique et BUILD_ID conservés ; aucune release GitHub publiée.
+
+## Vérification du bundle habituel et des pages ASCII+ — 1 octobre 2026
+
+- Cause du décalage : `origin/main` contenait les charsets ASCII+ (d2958b9),
+  tandis que le dossier principal était sur `fix/braille-export-geometry` (d757181).
+  Son `dist/Ditto.app` ne contenait pas les libellés ASCII+ ; une instance de ce
+  binaire était encore ouverte. La branche de correction reste indépendante.
+- Le scénario natif est prolongé jusqu’à quatre captures supplémentaires :
+  `contours-cadres-window.png`, `contours-traits-window.png`,
+  `textures-grain-window.png`, `textures-remplissages-window.png`.
+  Chaque page est choisie dans le mode clavier ; toutes ses touches sont saisies
+  et les cellules produites sont comparées aux cibles. Cinq pages / 141 et 139
+  cibles sont exigées, avec respect des limites de la grille.
+- Première recette sur le bundle du worktree `ditto-verify-charset-bundle` :
+  quatre captures inspectées, 22/25/14/31 formes visibles et insérées,
+  Apple M2 / Metal / SF Mono. Journal :
+  `validation/runtime/charset-bundle-check.log` dans ce worktree.
+- 96 tests passent, deux tests GPU ignorés par défaut ; fmt, clippy strict et
+  `git diff --check` passent. Aucune frappe physique revendiquée.
+- Le packager renseigne maintenant `DittoSourceRevision` dans Info.plist :
+  SHA Git complet, suffixe `-dirty` si des fichiers suivis sont modifiés,
+  `unknown` pour une archive source sans Git.
+- La recette finale construit depuis le worktree synchronisé avec main vers
+  `/Users/mars/projet-perso/ditto/dist/Ditto.app`, compare son exécutable avec
+  `target/release/ditto`, contrôle le SHA source et la signature, puis lance
+  précisément ce binaire avec `--smoke-dir` dans
+  `validation/runtime/charset-bundle-main/native` du dossier principal.
+- Une fenêtre déjà ouverte conserve son ancien binaire. Après sauvegarde,
+  quitter complètement Ditto puis ouvrir le bundle reconstruit charge les pages.
